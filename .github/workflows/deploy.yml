@@ -18,7 +18,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0 # Vollständige Git-Historie laden für Branch-Pushes
+          
       - name: Set dynamic version from Git Tag in config.yaml
         run: |
           VERSION=${GITHUB_REF#refs/tags/}
@@ -31,11 +33,12 @@ jobs:
         with:
           commit_message: "chore: bump version in config.yaml to ${{ github.ref_name }}"
           file_pattern: 'alphaess_mqtt/config.yaml'
+          branch: main # Definiert explizit den Ziel-Branch (verhindert 'detached HEAD')
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22 # Verhindert die Node 20 Deprecation Warning
 
       - name: Set up QEMU (for multi-arch builds)
         uses: docker/setup-qemu-action@v3
