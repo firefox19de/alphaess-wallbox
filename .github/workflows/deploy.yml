@@ -17,36 +17,46 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4[cite: 6]
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Sync version in config.yaml
+        run: |
+          cd alphaess_mqtt
+          npm run version[cite: 4]
 
       - name: Set up QEMU (for multi-arch builds)
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v3[cite: 6]
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v3[cite: 6]
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v3[cite: 6]
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io[cite: 6]
+          username: ${{ github.actor }}[cite: 6]
+          password: ${{ secrets.GITHUB_TOKEN }}[cite: 6]
 
       - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v5[cite: 6]
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}[cite: 6]
           tags: |
             type=semver,pattern={{version}}
-            type=raw,value=latest
+            type=raw,value=latest[cite: 6]
 
       - name: Build and push multi-arch Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
-          context: ./alphaess_mqtt
-          file: ./alphaess_mqtt/Dockerfile
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          context: ./alphaess_mqtt[cite: 6]
+          file: ./alphaess_mqtt/Dockerfile[cite: 6]
+          platforms: linux/amd64,linux/arm64,linux/arm/v7[cite: 6]
+          push: true[cite: 6]
+          tags: ${{ steps.meta.outputs.tags }}[cite: 6]
+          labels: ${{ steps.meta.outputs.labels }}[cite: 6]
