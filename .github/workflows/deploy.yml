@@ -20,25 +20,27 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Vollständige Git-Historie laden für Branch-Pushes
-          
-      - name: Set dynamic version from Git Tag in config.yaml
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          VERSION=${VERSION#v}
-          echo "Extracted Version: $VERSION"
-          sed -i "s/^version: .*/version: \"${VERSION}\"/" alphaess_mqtt/config.yaml
-
-      - name: Commit updated config.yaml back to repository
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: bump version in config.yaml to ${{ github.ref_name }}"
-          file_pattern: 'alphaess_mqtt/config.yaml'
-          branch: main # Definiert explizit den Ziel-Branch (verhindert 'detached HEAD')
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22 # Verhindert die Node 20 Deprecation Warning
+
+      - name: Set dynamic version in package.json and config.yaml
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=${VERSION#v}
+          echo "Extracted Version: $VERSION"
+          sed -i "s/^version: .*/version: \"${VERSION}\"/" alphaess_mqtt/config.yaml
+          cd alphaess_mqtt
+          npm version ${VERSION} --no-git-tag-version --allow-same-version
+
+      - name: Commit updated files back to repository
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "chore: bump version to ${{ github.ref_name }}"
+          file_pattern: 'alphaess_mqtt/config.yaml alphaess_mqtt/package.json'
+          branch: main # Definiert explizit den Ziel-Branch
 
       - name: Set up QEMU (for multi-arch builds)
         uses: docker/setup-qemu-action@v3
