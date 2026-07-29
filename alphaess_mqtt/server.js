@@ -50,7 +50,7 @@ const API_SYSTEM_URL = '/api/stable/home/getCustomMenuEssList';
 const API_EV_GET_URL = '/api/iterate/newEv/getNewEvBySn';
 const API_EV_STATUS_URL = '/api/iterate/ev/v2/getChargPileStatusByPileSn';
 const API_EV_SET_URL = '/api/iterate/newEv/setNewEv';
-const API_EV_CONTROL_URL = '/api/iterate/newEv/remoteControl';
+const API_EV_CONTROL_URL = '/api/iterate/ev/remoteControl';
 
 function calcTargetPowerKw(ampere, phase) {
   return Math.round(((Number(ampere || 0) * 230 * Number(phase || 3)) / 1000) * 100) / 100;
