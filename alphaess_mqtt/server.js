@@ -50,7 +50,8 @@ const API_SYSTEM_URL = '/api/stable/home/getCustomMenuEssList';
 const API_EV_GET_URL = '/api/iterate/newEv/getNewEvBySn';
 const API_EV_STATUS_URL = '/api/iterate/ev/v2/getChargPileStatusByPileSn';
 const API_EV_SET_URL = '/api/iterate/newEv/setNewEv';
-const API_EV_CONTROL_URL = '/api/iterate/ev/remoteControl';
+const API_EV_START_URL = '/api/iterate/ev/startCharging';
+const API_EV_STOP_URL = '/api/iterate/ev/stopCharging';
 
 function calcTargetPowerKw(ampere, phase) {
   return Math.round(((Number(ampere || 0) * 230 * Number(phase || 3)) / 1000) * 100) / 100;
@@ -252,17 +253,11 @@ class AlphaESSClient {
 
   async setEnableState(enabled) {
     await this.loadSystemAndCharger();
-    
-    const controlMode = enabled ? 1 : 0;
-    log('ALPHA', `[v${APP_VERSION}] Remote-Control Trigger: Send controlMode = ${controlMode} (${enabled ? 'Start' : 'Stop'})`);
-    
-    const payload = {
-      sysSn: this.systemSN,
-      chargingpileSn: this.evChargerSn,
-      controlMode: controlMode
-    };
-    
-    return await this.postWithAuth(API_EV_CONTROL_URL, payload);
+    const url = enabled ? API_EV_START_URL : API_EV_STOP_URL;
+  
+    log('ALPHA', `[v${APP_VERSION}] Remote-Control Trigger via ${enabled ? 'startCharging' : 'stopCharging'} (Key: ${this.evChargerkey})`);
+  
+    return await this.postWithAuth(url, { id: this.evChargerkey });
   }
 
   async setAmpere(ampere, enabled = true, phase = null) {
