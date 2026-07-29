@@ -7,7 +7,7 @@ const mqtt = require('mqtt');
 const pkg = require('./package.json');
 
 const APP_NAME = 'AlphaESS MQTT Bridge';
-const APP_VERSION = pkg.version;
+const APP_VERSION = process.env.APP_VERSION || require('./package.json').version || '0.0.0';
 
 function log(level, message, ...extra) {
   const now = new Date();

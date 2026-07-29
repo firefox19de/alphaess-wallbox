@@ -19,15 +19,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set dynamic version from Git Tag in config.yaml
+        run: |
+          # Extrahiert '1.3.6' aus 'refs/tags/v1.3.6'
+          VERSION=${GITHUB_REF#refs/tags/}
+          VERSION=${VERSION#v}
+          echo "Extracted Version: $VERSION"
+          
+          # Injiere Version in config.yaml
+          sed -i "s/^version: .*/version: \"${VERSION}\"/" alphaess_mqtt/config.yaml
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Sync version in config.yaml
-        run: |
-          cd alphaess_mqtt
-          npm run version
 
       - name: Set up QEMU (for multi-arch builds)
         uses: docker/setup-qemu-action@v3
