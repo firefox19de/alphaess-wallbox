@@ -325,7 +325,7 @@ class AlphaESSClient {
     if (wasCharging) {
       log('ALPHA', `[v${APP_VERSION}] Pausiere Ladevorgang für Schützschaltung...`);
       await this.setEnableState(false);
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 3500));
     }
 
     const evData = await this.getEvData();
@@ -344,11 +344,14 @@ class AlphaESSClient {
       currentsetting: evData.currentsetting || 32,
       oldPileData: newPileData
     };
+    
+    log('ALPHA', `[v${APP_VERSION}] Sende Phasenkonfiguration an Cloud...`);
     const res = await this.postWithAuth(API_EV_SET_URL, payload);
 
     if (wasCharging) {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      log('ALPHA', `[v${APP_VERSION}] Re-aktiviere Ladevorgang...`);
+      log('ALPHA', `[v${APP_VERSION}] Phasenkonfiguration übermittelt. Warte auf Relais-Umschaltung (6s)...`);
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      log('ALPHA', `[v${APP_VERSION}] Re-aktiviere Ladevorgang via startCharging...`);
       await this.setEnableState(true);
     }
 
