@@ -1,0 +1,17 @@
+changelog:
+  categories:
+    - title: "?? Bug Fixes"
+      labels:
+        - fix
+      keywords:
+        - fix
+    - title: "?? New Features"
+      labels:
+        - feat
+      keywords:
+        - feat
+    - title: "?? Documentation"
+      labels:
+        - docs
+      keywords:
+        - docs
