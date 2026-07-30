@@ -365,14 +365,13 @@ async function executePoll() {
     const data = await client.status();
     log('POLL', `Status: State ${data.evcc_status} | Phase: ${data.phase}P | Current: ${data.ampere}A | Enabled: ${data.enabled} | Mode: ${data.charging_mode_name}`);
     
-    // MQTT Status-Updates für evcc
     mqttClient.publish(`${BASE_TOPIC}/status`, data.evcc_status, { retain: true });
     mqttClient.publish(`${BASE_TOPIC}/enabled`, data.enabled ? 'true' : 'false', { retain: true });
     mqttClient.publish(`${BASE_TOPIC}/mode/state`, String(data.charging_mode), { retain: true });
     mqttClient.publish(`${BASE_TOPIC}/power`, String(data.target_kw * 1000), { retain: true });
     mqttClient.publish(`${BASE_TOPIC}/maxcurrent`, String(data.ampere), { retain: true });
+    mqttClient.publish(`${BASE_TOPIC}/phases`, String(data.phase), { retain: true });
 
-    // Home Assistant Auto-Discovery
     if (HA_DISCOVERY && !haDiscoverySent && data.charger_sn) {
       publishHaDiscovery(data.charger_sn);
       haDiscoverySent = true;
@@ -404,7 +403,7 @@ function publishHaDiscovery(chargerSn) {
     manufacturer: "AlphaESS"
   };
 
-  log('HA', `Sende Home Assistant Auto-Discovery Pakete (Prefix: ${HA_PREFIX})...`);
+  log('HA', `Sende erweiterte Home Assistant Auto-Discovery Pakete inkl. Steuerung (Prefix: ${HA_PREFIX})...`);
 
   mqttClient.publish(`${HA_PREFIX}/sensor/${deviceId}/status/config`, JSON.stringify({
     name: "Wallbox Status",
@@ -423,14 +422,49 @@ function publishHaDiscovery(chargerSn) {
     device: device
   }), { retain: true });
 
-  mqttClient.publish(`${HA_PREFIX}/binary_sensor/${deviceId}/enabled/config`, JSON.stringify({
-    name: "Ladevorgang Aktiv",
-    unique_id: `${deviceId}_enabled`,
+  mqttClient.publish(`${HA_PREFIX}/switch/${deviceId}/enable/config`, JSON.stringify({
+    name: "Ladefreigabe",
+    unique_id: `${deviceId}_enable_switch`,
     state_topic: `${BASE_TOPIC}/enabled`,
+    command_topic: `${BASE_TOPIC}/enable/set`,
     payload_on: "true",
     payload_off: "false",
     device: device,
-    icon: "mdi:battery-charging"
+    icon: "mdi:power"
+  }), { retain: true });
+
+  mqttClient.publish(`${HA_PREFIX}/number/${deviceId}/maxcurrent/config`, JSON.stringify({
+    name: "Maximalstrom",
+    unique_id: `${deviceId}_maxcurrent_number`,
+    state_topic: `${BASE_TOPIC}/maxcurrent`,
+    command_topic: `${BASE_TOPIC}/maxcurrent/set`,
+    min: 6,
+    max: 16,
+    step: 1,
+    unit_of_measurement: "A",
+    mode: "slider",
+    device: device,
+    icon: "mdi:current-ac"
+  }), { retain: true });
+
+  mqttClient.publish(`${HA_PREFIX}/select/${deviceId}/phases/config`, JSON.stringify({
+    name: "Phasen",
+    unique_id: `${deviceId}_phases_select`,
+    state_topic: `${BASE_TOPIC}/phases`,
+    command_topic: `${BASE_TOPIC}/phases/set`,
+    options: ["1", "3"],
+    device: device,
+    icon: "mdi:sine-wave"
+  }), { retain: true });
+
+  mqttClient.publish(`${HA_PREFIX}/select/${deviceId}/mode/config`, JSON.stringify({
+    name: "Lademodus",
+    unique_id: `${deviceId}_mode_select`,
+    state_topic: `${BASE_TOPIC}/mode/state`,
+    command_topic: `${BASE_TOPIC}/mode/set`,
+    options: ["4", "2"],
+    device: device,
+    icon: "mdi:tune"
   }), { retain: true });
 }
 
