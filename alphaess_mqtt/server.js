@@ -367,7 +367,8 @@ async function executePoll() {
     
     mqttClient.publish(`${BASE_TOPIC}/status`, data.evcc_status, { retain: true });
     mqttClient.publish(`${BASE_TOPIC}/enabled`, data.enabled ? 'true' : 'false', { retain: true });
-    mqttClient.publish(`${BASE_TOPIC}/mode/state`, String(data.charging_mode), { retain: true });
+    mqttClient.publish(`${BASE_TOPIC}/mode/code`, String(data.charging_mode), { retain: true });
+    mqttClient.publish(`${BASE_TOPIC}/mode/state`, data.charging_mode_name, { retain: true });
     mqttClient.publish(`${BASE_TOPIC}/power`, String(data.target_kw * 1000), { retain: true });
     mqttClient.publish(`${BASE_TOPIC}/maxcurrent`, String(data.ampere), { retain: true });
     mqttClient.publish(`${BASE_TOPIC}/phases`, String(data.phase), { retain: true });
@@ -457,12 +458,15 @@ function publishHaDiscovery(chargerSn) {
     icon: "mdi:sine-wave"
   }), { retain: true });
 
+  // Alle verfügbaren Klartext-Namen aus der Map extrahieren
+  const modeOptions = Array.from(client.evModeMap.values());
+
   mqttClient.publish(`${HA_PREFIX}/select/${deviceId}/mode/config`, JSON.stringify({
     name: "Lademodus",
     unique_id: `${deviceId}_mode_select`,
     state_topic: `${BASE_TOPIC}/mode/state`,
     command_topic: `${BASE_TOPIC}/mode/set`,
-    options: ["4", "2"],
+    options: modeOptions,
     device: device,
     icon: "mdi:tune"
   }), { retain: true });
@@ -507,7 +511,25 @@ mqttClient.on('message', async (topic, message) => {
       const res = await client.setPhases(parseInt(payload, 10));
       log('ALPHA', `Phasen-Ergebnis [v${APP_VERSION}]:`, JSON.stringify(res));
     } else if (topic === `${BASE_TOPIC}/mode/set`) {
-      const modeCode = (payload === 'custom' || payload === '4') ? 4 : 2;
+      let modeCode = 4; // Fallback: Custom
+
+      // 1. Suche nach Treffer in den Klartext-Namen
+      for (const [code, name] of client.evModeMap.entries()) {
+        if (name.toLowerCase() === payload.toLowerCase()) {
+          modeCode = code;
+          break;
+        }
+      }
+
+      // 2. Abwärtskompatibilität für reine Zahlen oder Schlüsselwörter (evcc/skripte)
+      if (!isNaN(payload)) {
+        modeCode = Number(payload);
+      } else if (payload.toLowerCase() === 'custom') {
+        modeCode = 4;
+      } else if (payload.toLowerCase() === 'eco') {
+        modeCode = 2;
+      }
+
       const res = await client.setMode(modeCode);
       log('ALPHA', `Modus-Ergebnis [v${APP_VERSION}]:`, JSON.stringify(res));
     }
