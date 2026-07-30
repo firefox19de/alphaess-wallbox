@@ -2,12 +2,16 @@
 
 Eine performante Web-API Bridge für die AlphaESS EVCT11 Wallbox zur nahtlosen Steuerung über **MQTT**, **evcc** und **Home Assistant**.
 
+> **Wichtiger Hinweis (Disclaimer):**  
+> Dieses Projekt ist eine inoffizielle Bridge, welche die AlphaESS Web-Schnittstelle nutzt. Die Verwendung erfolgt auf eigene Verantwortung. Es besteht keine Verbindung zur Alpha ESS Co., Ltd. Für Ausfallsicherheit und sekundengenaue Steuerung ohne Cloud-Abhängigkeiten empfiehlt sich alternativ eine lokale Modbus/RS485-Anbindung.
+
 ## Features
 
 * **Anbindung via AlphaESS Web API:** Keine lokalen Hardware-Modifikationen erforderlich.
 * **evcc Kompatibilität:** Bietet alle Steuerungsendpunkte (Enable, Current, Phases, Mode).
-* **Sichere Phasenumschaltung (1P/3P):** Führt bei aktiver Ladung eine automatisierte Stop-Wait-Switch-Start-Sequenz durch, um Hardwareschäden zu vermeiden.
-* **Dynamisches Polling:** Polling-Intervall von 120s im Leerlauf (State A) und 15s während aktiver Sessions (State B/C).
+* **Sichere Phasenumschaltung (1P/3P):** Führt bei aktiver Ladung eine automatisierte Stop-Wait-Switch-Start-Sequenz durch, um Hardwareschäden an den Schützen zu vermeiden.
+* **Konfigurierbares Dynamic Polling & Guardrails:** Wählbare Intervalle für Leerlauf und aktives Laden inklusive hartem Minimum-Schutz im Code (Guardrail) gegen versehentliches API-Spamming.
+* **Rate-Limit & Backoff-Handling:** Automatisches Ausweichen mit Jitter-Verzögerung bei HTTP 429 / 403 Fehlern zum Schutz vor temporären Cloud-Sperren.
 * **On-Demand Refresh:** Sofortiges Feedback bei empfangenen Steuerbefehlen.
 * **Erweitertes Home Assistant Auto-Discovery:** Automatische Registrierung aller Sensoren sowie interaktiver Steuerungselemente (Schalter, Schieberegler, Auswahlmenüs).
 
@@ -20,6 +24,10 @@ Eine performante Web-API Bridge für die AlphaESS EVCT11 Wallbox zur nahtlosen St
 | `ALPHAESS_USERNAME` | Benutzername (E-Mail) für AlphaESS Cloud | *Erforderlich* |
 | `ALPHAESS_PASSWORD` | Passwort für AlphaESS Cloud | *Erforderlich* |
 | `ALPHAESS_BASE_URL` | Cloud Endpoint URL | `https://eurcloud.alphaess.com` |
+| `POLLING_IDLE` | Polling-Intervall im Leerlauf (State A) in Sekunden | `120` |
+| `POLLING_ACTIVE` | Polling-Intervall beim aktiven Laden in Sekunden | `15` |
+| `MIN_POLLING_LIMIT` | Untere Grenze für Polling-Intervalle (Guardrail) | `10` |
+| `BACKOFF_DELAY` | Wartezeit bei Cloud-Sperren (HTTP 429/403) in Sekunden | `300` |
 | `MQTT_BROKER` | Adresse des MQTT Brokers | `mqtt://homeassistant:1883` |
 | `MQTT_USER` | MQTT Benutzer (falls benötigt) | *optional* |
 | `MQTT_PASSWORD` | MQTT Passwort (falls benötigt) | *optional* |
