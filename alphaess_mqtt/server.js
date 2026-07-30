@@ -292,11 +292,20 @@ class AlphaESSClient {
   }
 
   async setPhases(phases) {
-    const evData = await this.getEvData();
-    const oldPileData = evData.oldPileData || evData;
+    const currentStatus = await this.status();
+    const wasCharging = currentStatus.enabled;
     const targetPhase = Number(phases) === 1 ? 1 : 3;
     
-    log('ALPHA', `[v${APP_VERSION}] Schalte Phasen um auf: ${targetPhase}P`);
+    log('ALPHA', `[v${APP_VERSION}] Phasenumschaltung auf ${targetPhase}P angefordert. (War aktiv: ${wasCharging})`);
+
+    if (wasCharging) {
+      log('ALPHA', `[v${APP_VERSION}] Pausiere Ladevorgang für Schützschaltung...`);
+      await this.setEnableState(false);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    const evData = await this.getEvData();
+    const oldPileData = evData.oldPileData || evData;
     
     const newPileData = Object.assign({}, oldPileData, {
       chargingpileSn: this.evChargerSn,
@@ -311,7 +320,15 @@ class AlphaESSClient {
       currentsetting: evData.currentsetting || 32,
       oldPileData: newPileData
     };
-    return await this.postWithAuth(API_EV_SET_URL, payload);
+    const res = await this.postWithAuth(API_EV_SET_URL, payload);
+
+    if (wasCharging) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      log('ALPHA', `[v${APP_VERSION}] Re-aktiviere Ladevorgang...`);
+      await this.setEnableState(true);
+    }
+
+    return res;
   }
 
   async setMode(modeCode) {
