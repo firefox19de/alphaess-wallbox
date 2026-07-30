@@ -2,8 +2,8 @@
 
 Eine performante Web-API Bridge für die AlphaESS EVCT11 Wallbox zur nahtlosen Steuerung über **MQTT**, **evcc** und **Home Assistant**.
 
-> **Wichtiger Hinweis (Disclaimer):**  
-> Dieses Projekt ist eine inoffizielle Bridge, welche die AlphaESS Web-Schnittstelle nutzt. Die Verwendung erfolgt auf eigene Verantwortung. Es besteht keine Verbindung zur Alpha ESS Co., Ltd. Für Ausfallsicherheit und sekundengenaue Steuerung ohne Cloud-Abhängigkeiten empfiehlt sich alternativ eine lokale Modbus/RS485-Anbindung.
+**Wichtiger Hinweis (Disclaimer):**  
+Dieses Projekt ist eine inoffizielle Bridge, welche die AlphaESS Web-Schnittstelle nutzt. Die Verwendung erfolgt auf eigene Verantwortung. Es besteht keine Verbindung zur Alpha ESS Co., Ltd. Für Ausfallsicherheit und sekundengenaue Steuerung ohne Cloud-Abhängigkeiten empfiehlt sich alternativ eine lokale Modbus/RS485-Anbindung.
 
 ## Features
 
