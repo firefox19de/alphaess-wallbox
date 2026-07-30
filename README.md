@@ -2,8 +2,10 @@
 
 Eine performante Web-API Bridge für die AlphaESS EVCT11 Wallbox zur nahtlosen Steuerung über **MQTT**, **evcc** und **Home Assistant**.
 
-**Wichtiger Hinweis (Disclaimer):**  
-Dieses Projekt ist eine inoffizielle Bridge, welche die AlphaESS Web-Schnittstelle nutzt. Die Verwendung erfolgt auf eigene Verantwortung. Es besteht keine Verbindung zur Alpha ESS Co., Ltd. Für Ausfallsicherheit und sekundengenaue Steuerung ohne Cloud-Abhängigkeiten empfiehlt sich alternativ eine lokale Modbus/RS485-Anbindung.
+> **Wichtiger Hinweis (Disclaimer):**  
+> Dieses Projekt ist eine inoffizielle Bridge, welche die AlphaESS Web-Schnittstelle nutzt. Die Nutzung erfolgt auf eigene Verantwortung. Es besteht keinerlei Verbindung zur Alpha ESS Co., Ltd.  
+>  
+> Die Logik orientiert sich an den Erkenntnissen und Dokumentationen aus dem Community-Thread auf [Storion4You](https://www.storion4you.de/thread/1898-testlabor-alphaess-openapi-walboxsteuerung/) (insbesondere [Beitrag #179 von Denjell](https://www.storion4you.de/wcf/file-download/6270/)).
 
 ## Features
 
