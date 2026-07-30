@@ -16,6 +16,9 @@ options:
   MQTT_BROKER: "mqtt://homeassistant:1883"
   MQTT_USER: ""
   MQTT_PASSWORD: ""
+  MQTT_BASE_TOPIC: "evcc/chargers/alphaess"
+  MQTT_HA_DISCOVERY: true
+  MQTT_HA_PREFIX: "homeassistant"
 schema:
   ALPHAESS_USERNAME: str
   ALPHAESS_PASSWORD: password
@@ -24,4 +27,7 @@ schema:
   MQTT_BROKER: "match(^mqtts?://.+$)"
   MQTT_USER: str?
   MQTT_PASSWORD: password?
+  MQTT_BASE_TOPIC: str?
+  MQTT_HA_DISCOVERY: bool?
+  MQTT_HA_PREFIX: str?
 image: "ghcr.io/firefox19de/alphaess-wallbox"

@@ -7,7 +7,7 @@ const mqtt = require('mqtt');
 const pkg = require('./package.json');
 
 const APP_NAME = 'AlphaESS MQTT Bridge';
-const APP_VERSION = process.env.APP_VERSION || require('./package.json').version || '0.0.0';
+const APP_VERSION = process.env.APP_VERSION || pkg.version || '0.0.0';
 
 function log(level, message, ...extra) {
   const now = new Date();
@@ -41,6 +41,9 @@ const AUTH_SCHEME = (process.env.ALPHAESS_AUTH_SCHEME || 'raw').toLowerCase();
 const MQTT_BROKER = process.env.MQTT_BROKER || 'mqtt://homeassistant:1883';
 const MQTT_USER = process.env.MQTT_USER;
 const MQTT_PASSWORD = process.env.MQTT_PASSWORD;
+const BASE_TOPIC = (process.env.MQTT_BASE_TOPIC || 'evcc/chargers/alphaess').replace(/\/+$/, '');
+const HA_DISCOVERY = process.env.MQTT_HA_DISCOVERY !== 'false' && process.env.MQTT_HA_DISCOVERY !== false;
+const HA_PREFIX = process.env.MQTT_HA_PREFIX || 'homeassistant';
 
 const LOGIN_URL = 'login';
 const API_PILOT_URL = '/api/usercenter/cloud/user/pilot';
@@ -247,16 +250,15 @@ class AlphaESSClient {
       phase: phase,
       charging_mode: chargingMode,
       charging_mode_name: modeName,
-      target_kw: calcTargetPowerKw(maxCurrent, phase)
+      target_kw: calcTargetPowerKw(maxCurrent, phase),
+      charger_sn: this.evChargerSn
     };
   }
 
   async setEnableState(enabled) {
     await this.loadSystemAndCharger();
     const url = enabled ? API_EV_START_URL : API_EV_STOP_URL;
-  
     log('ALPHA', `[v${APP_VERSION}] Remote-Control Trigger via ${enabled ? 'startCharging' : 'stopCharging'} (Key: ${this.evChargerkey})`);
-  
     return await this.postWithAuth(url, { id: this.evChargerkey });
   }
 
@@ -337,6 +339,84 @@ class AlphaESSClient {
 
 const client = new AlphaESSClient();
 
+let pollIntervalTimer = null;
+let currentIntervalMs = 120000; // Default 120s (State A)
+let haDiscoverySent = false;
+
+async function executePoll() {
+  try {
+    const data = await client.status();
+    log('POLL', `Status: State ${data.evcc_status} | Phase: ${data.phase}P | Current: ${data.ampere}A | Enabled: ${data.enabled} | Mode: ${data.charging_mode_name}`);
+    
+    // MQTT Status-Updates für evcc
+    mqttClient.publish(`${BASE_TOPIC}/status`, data.evcc_status, { retain: true });
+    mqttClient.publish(`${BASE_TOPIC}/enabled`, data.enabled ? 'true' : 'false', { retain: true });
+    mqttClient.publish(`${BASE_TOPIC}/mode/state`, String(data.charging_mode), { retain: true });
+    mqttClient.publish(`${BASE_TOPIC}/power`, String(data.target_kw * 1000), { retain: true });
+    mqttClient.publish(`${BASE_TOPIC}/maxcurrent`, String(data.ampere), { retain: true });
+
+    // Home Assistant Auto-Discovery
+    if (HA_DISCOVERY && !haDiscoverySent && data.charger_sn) {
+      publishHaDiscovery(data.charger_sn);
+      haDiscoverySent = true;
+    }
+
+    // Dynamic Polling Interval Adjustment
+    const desiredIntervalMs = (data.evcc_status === 'A') ? 120000 : 15000;
+    if (desiredIntervalMs !== currentIntervalMs) {
+      log('POLL', `Wechsle Polling-Intervall von ${currentIntervalMs / 1000}s auf ${desiredIntervalMs / 1000}s (State: ${data.evcc_status})`);
+      currentIntervalMs = desiredIntervalMs;
+      resetPollingTimer();
+    }
+  } catch (err) {
+    log('ERROR', 'Fehler beim Statusabruf:', err.message);
+  }
+}
+
+function resetPollingTimer() {
+  if (pollIntervalTimer) clearInterval(pollIntervalTimer);
+  pollIntervalTimer = setInterval(executePoll, currentIntervalMs);
+}
+
+function publishHaDiscovery(chargerSn) {
+  const deviceId = `alphaess_wallbox_${chargerSn.toLowerCase()}`;
+  const device = {
+    identifiers: [deviceId],
+    name: "AlphaESS Wallbox",
+    model: "EVCT11",
+    manufacturer: "AlphaESS"
+  };
+
+  log('HA', `Sende Home Assistant Auto-Discovery Pakete (Prefix: ${HA_PREFIX})...`);
+
+  mqttClient.publish(`${HA_PREFIX}/sensor/${deviceId}/status/config`, JSON.stringify({
+    name: "Wallbox Status",
+    unique_id: `${deviceId}_status`,
+    state_topic: `${BASE_TOPIC}/status`,
+    device: device,
+    icon: "mdi:ev-station"
+  }), { retain: true });
+
+  mqttClient.publish(`${HA_PREFIX}/sensor/${deviceId}/power/config`, JSON.stringify({
+    name: "Ladeleistung",
+    unique_id: `${deviceId}_power`,
+    state_topic: `${BASE_TOPIC}/power`,
+    unit_of_measurement: "W",
+    device_class: "power",
+    device: device
+  }), { retain: true });
+
+  mqttClient.publish(`${HA_PREFIX}/binary_sensor/${deviceId}/enabled/config`, JSON.stringify({
+    name: "Ladevorgang Aktiv",
+    unique_id: `${deviceId}_enabled`,
+    state_topic: `${BASE_TOPIC}/enabled`,
+    payload_on: "true",
+    payload_off: "false",
+    device: device,
+    icon: "mdi:battery-charging"
+  }), { retain: true });
+}
+
 log('MQTT', `Verbinde mit Broker (${MQTT_BROKER})...`);
 const mqttClient = mqtt.connect(MQTT_BROKER, {
   username: MQTT_USER,
@@ -346,10 +426,14 @@ const mqttClient = mqtt.connect(MQTT_BROKER, {
 
 mqttClient.on('connect', () => {
   log('MQTT', 'Erfolgreich mit Broker verbunden!');
-  mqttClient.subscribe('evcc/chargers/alphaess/enable/set');
-  mqttClient.subscribe('evcc/chargers/alphaess/maxcurrent/set');
-  mqttClient.subscribe('evcc/chargers/alphaess/phases/set');
-  mqttClient.subscribe('evcc/chargers/alphaess/mode/set');
+  mqttClient.subscribe(`${BASE_TOPIC}/enable/set`);
+  mqttClient.subscribe(`${BASE_TOPIC}/maxcurrent/set`);
+  mqttClient.subscribe(`${BASE_TOPIC}/phases/set`);
+  mqttClient.subscribe(`${BASE_TOPIC}/mode/set`);
+
+  // Ersten Poll direkt ausführen & Timer starten
+  executePoll();
+  resetPollingTimer();
 });
 
 mqttClient.on('error', (err) => {
@@ -360,35 +444,26 @@ mqttClient.on('message', async (topic, message) => {
   const payload = message.toString().trim();
   log('MQTT IN', `Topic: ${topic} -> Payload: ${payload}`);
   try {
-    if (topic === 'evcc/chargers/alphaess/enable/set') {
+    if (topic === `${BASE_TOPIC}/enable/set`) {
       const isEnable = payload === 'true';
       const res = await client.setEnableState(isEnable);
       log('ALPHA', `Enable/Disable-Ergebnis [v${APP_VERSION}]:`, JSON.stringify(res));
-    } else if (topic === 'evcc/chargers/alphaess/maxcurrent/set') {
+    } else if (topic === `${BASE_TOPIC}/maxcurrent/set`) {
       const current = Math.round(parseFloat(payload));
       const res = await client.setAmpere(current, true);
       log('ALPHA', `Stromstärken-Ergebnis [v${APP_VERSION}]:`, JSON.stringify(res));
-    } else if (topic === 'evcc/chargers/alphaess/phases/set') {
+    } else if (topic === `${BASE_TOPIC}/phases/set`) {
       const res = await client.setPhases(parseInt(payload, 10));
       log('ALPHA', `Phasen-Ergebnis [v${APP_VERSION}]:`, JSON.stringify(res));
-    } else if (topic === 'evcc/chargers/alphaess/mode/set') {
+    } else if (topic === `${BASE_TOPIC}/mode/set`) {
       const modeCode = (payload === 'custom' || payload === '4') ? 4 : 2;
       const res = await client.setMode(modeCode);
       log('ALPHA', `Modus-Ergebnis [v${APP_VERSION}]:`, JSON.stringify(res));
     }
+
+    // On-Demand Polling direkt nach dem Senden eines Befehls
+    setTimeout(executePoll, 1500);
   } catch (err) {
     log('ERROR', 'Fehler bei Bearbeitung des MQTT-Befehls:', err.message);
   }
 });
-
-setInterval(async () => {
-  try {
-    const data = await client.status();
-    log('POLL', `Wallbox Status: State ${data.evcc_status} | Phase: ${data.phase}P | Current: ${data.ampere}A | Enabled: ${data.enabled} | Mode: ${data.charging_mode_name}`);
-    mqttClient.publish('evcc/chargers/alphaess/status', data.evcc_status, { retain: true });
-    mqttClient.publish('evcc/chargers/alphaess/enabled', data.enabled ? 'true' : 'false', { retain: true });
-    mqttClient.publish('evcc/chargers/alphaess/mode/state', String(data.charging_mode), { retain: true });
-  } catch (err) {
-    log('ERROR', 'Fehler beim Statusabruf:', err.message);
-  }
-}, 15000);
