@@ -3,7 +3,7 @@ name: Automatic Release & Changelog
 on:
   push:
     tags:
-      - 'v*' # Startet automatisch bei Tags wie v1.1.1, v1.2.0 etc.
+      - 'v*'
 
 jobs:
   build-release:
@@ -14,9 +14,28 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Holt die gesamte Historie für korrekte Changelogs
+          fetch-depth: 0
 
-      - name: Create GitHub Release with Auto-Changelog
+      - name: Generate Clean Changelog
+        id: changelog
+        run: |
+          # Holt alle Commits seit dem letzten Tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="$PREV_TAG..HEAD"
+          fi
+
+          # Liest Commits aus, entfernt Issue-Nummern (#123) für sauberes Markdown
+          CHANGELOG=$(git log $RANGE --pretty=format:"* %s (%h)" | sed -E 's/#([0-9]+)/[\#\1]/g')
+
+          # Speichert das Ergebnis für das Release
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "$CHANGELOG" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          generate_release_notes: true
+          body: ${{ env.CHANGELOG }}
