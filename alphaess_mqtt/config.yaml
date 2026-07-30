@@ -1,7 +1,7 @@
 name: "AlphaESS MQTT Bridge"
 slug: "alphaess_mqtt"
 description: "Web-API Bridge für AlphaESS Wallbox via MQTT für evcc"
-version: "1.1.0"
+version: "1.1.1"
 arch:
   - amd64
   - aarch64
