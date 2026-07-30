@@ -1,7 +1,7 @@
 name: "AlphaESS MQTT Bridge"
 slug: "alphaess_mqtt"
 description: "Web-API Bridge für AlphaESS Wallbox via MQTT für evcc"
-version: "1.1.4"
+version: "1.1.5"
 arch:
   - amd64
   - aarch64
@@ -13,6 +13,10 @@ options:
   ALPHAESS_PASSWORD: ""
   ALPHAESS_BASE_URL: "https://eurcloud.alphaess.com"
   ALPHAESS_AUTH_SCHEME: "raw"
+  POLLING_IDLE: 120
+  POLLING_ACTIVE: 15
+  MIN_POLLING_LIMIT: 10
+  BACKOFF_DELAY: 300
   MQTT_BROKER: "mqtt://homeassistant:1883"
   MQTT_USER: ""
   MQTT_PASSWORD: ""
@@ -24,6 +28,10 @@ schema:
   ALPHAESS_PASSWORD: password
   ALPHAESS_BASE_URL: "match(^https?://.+$)"
   ALPHAESS_AUTH_SCHEME: str
+  POLLING_IDLE: int?
+  POLLING_ACTIVE: int?
+  MIN_POLLING_LIMIT: int?
+  BACKOFF_DELAY: int?
   MQTT_BROKER: "match(^mqtts?://.+$)"
   MQTT_USER: str?
   MQTT_PASSWORD: password?

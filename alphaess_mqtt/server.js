@@ -33,6 +33,24 @@ log('INFO', '==============================================');
 log('INFO', `--- ${APP_NAME} v${APP_VERSION} gestartet ---`);
 log('INFO', '==============================================');
 
+// --- CONFIGURATION & GUARDRAILS ---
+const MIN_POLLING_SECONDS = Math.max(10, parseInt(process.env.MIN_POLLING_LIMIT, 10) || 10);
+
+function getSanitizedInterval(userValue, defaultSeconds) {
+  const val = parseInt(userValue, 10) || defaultSeconds;
+  if (val < MIN_POLLING_SECONDS) {
+    log('WARN', `Polling-Intervall von ${val}s unterschreitet Minimum. Setze Guardrail-Limit: ${MIN_POLLING_SECONDS}s.`);
+    return MIN_POLLING_SECONDS;
+  }
+  return val;
+}
+
+const POLLING_IDLE_MS = getSanitizedInterval(process.env.POLLING_IDLE, 120) * 1000;
+const POLLING_ACTIVE_MS = getSanitizedInterval(process.env.POLLING_ACTIVE, 15) * 1000;
+const BACKOFF_DELAY_MS = (parseInt(process.env.BACKOFF_DELAY, 10) || 300) * 1000;
+
+log('CONFIG', `Polling-Konfiguration: Idle=${POLLING_IDLE_MS / 1000}s | Active=${POLLING_ACTIVE_MS / 1000}s | Min-Limit=${MIN_POLLING_SECONDS}s | Backoff=${BACKOFF_DELAY_MS / 1000}s`);
+
 const BASE_URL = process.env.ALPHAESS_BASE_URL || 'https://eurcloud.alphaess.com';
 const USERNAME = process.env.ALPHAESS_USERNAME;
 const PASSWORD = process.env.ALPHAESS_PASSWORD;
@@ -173,6 +191,9 @@ class AlphaESSClient {
       }
       return res.data;
     } catch (e) {
+      if (e.response && (e.response.status === 429 || e.response.status === 403)) {
+        throw e; // Durchreichen an Backoff-Handler
+      }
       log('WARN', `Anfrage fehlgeschlagen (${e.message}). Erzwinge Erneuerung der Session...`);
       this.accessToken = null;
       await this.login();
@@ -190,6 +211,9 @@ class AlphaESSClient {
       }
       return res.data;
     } catch (e) {
+      if (e.response && (e.response.status === 429 || e.response.status === 403)) {
+        throw e; // Durchreichen an Backoff-Handler
+      }
       log('WARN', `POST Anfrage fehlgeschlagen (${e.message}). Erzwinge Erneuerung der Session...`);
       this.accessToken = null;
       await this.login();
@@ -356,13 +380,21 @@ class AlphaESSClient {
 
 const client = new AlphaESSClient();
 
-let pollIntervalTimer = null;
-let currentIntervalMs = 120000; // Default 120s (State A)
+let pollTimeoutTimer = null;
 let haDiscoverySent = false;
+let isBackoffActive = false;
 
 async function executePoll() {
+  let nextIntervalMs = POLLING_IDLE_MS;
+
   try {
     const data = await client.status();
+    
+    if (isBackoffActive) {
+      log('POLL', '[API Recovery] Verbindung nach Rate-Limit/Sperre wiederhergestellt. Fahre mit normalem Polling fort.');
+      isBackoffActive = false;
+    }
+
     log('POLL', `Status: State ${data.evcc_status} | Phase: ${data.phase}P | Current: ${data.ampere}A | Enabled: ${data.enabled} | Mode: ${data.charging_mode_name}`);
     
     mqttClient.publish(`${BASE_TOPIC}/status`, data.evcc_status, { retain: true });
@@ -379,20 +411,28 @@ async function executePoll() {
     }
 
     // Dynamic Polling Interval Adjustment
-    const desiredIntervalMs = (data.evcc_status === 'A') ? 120000 : 15000;
-    if (desiredIntervalMs !== currentIntervalMs) {
-      log('POLL', `Wechsle Polling-Intervall von ${currentIntervalMs / 1000}s auf ${desiredIntervalMs / 1000}s (State: ${data.evcc_status})`);
-      currentIntervalMs = desiredIntervalMs;
-      resetPollingTimer();
-    }
+    nextIntervalMs = (data.evcc_status === 'A') ? POLLING_IDLE_MS : POLLING_ACTIVE_MS;
+
   } catch (err) {
-    log('ERROR', 'Fehler beim Statusabruf:', err.message);
+    const statusCode = err.response ? err.response.status : null;
+
+    if (statusCode === 429 || statusCode === 403) {
+      isBackoffActive = true;
+      const jitterMs = Math.floor(Math.random() * 10000); // Jitter: 0 - 10s
+      nextIntervalMs = BACKOFF_DELAY_MS + jitterMs;
+      log('ERROR', `[Rate Limit / Auth Sperre HTTP ${statusCode}] Cloud-Limit erreicht! Pausiere Polling für ${Math.round(nextIntervalMs / 1000)}s...`);
+    } else {
+      log('ERROR', 'Fehler beim Statusabruf:', err.message);
+      nextIntervalMs = POLLING_IDLE_MS;
+    }
+  } finally {
+    scheduleNextPoll(nextIntervalMs);
   }
 }
 
-function resetPollingTimer() {
-  if (pollIntervalTimer) clearInterval(pollIntervalTimer);
-  pollIntervalTimer = setInterval(executePoll, currentIntervalMs);
+function scheduleNextPoll(delayMs) {
+  if (pollTimeoutTimer) clearTimeout(pollTimeoutTimer);
+  pollTimeoutTimer = setTimeout(executePoll, delayMs);
 }
 
 function publishHaDiscovery(chargerSn) {
@@ -458,7 +498,6 @@ function publishHaDiscovery(chargerSn) {
     icon: "mdi:sine-wave"
   }), { retain: true });
 
-  // Alle verfügbaren Klartext-Namen aus der Map extrahieren
   const modeOptions = Array.from(client.evModeMap.values());
 
   mqttClient.publish(`${HA_PREFIX}/select/${deviceId}/mode/config`, JSON.stringify({
@@ -486,9 +525,8 @@ mqttClient.on('connect', () => {
   mqttClient.subscribe(`${BASE_TOPIC}/phases/set`);
   mqttClient.subscribe(`${BASE_TOPIC}/mode/set`);
 
-  // Ersten Poll direkt ausführen & Timer starten
+  // Ersten Poll direkt ausführen (scheduleNextPoll übernimmt Folgetakt)
   executePoll();
-  resetPollingTimer();
 });
 
 mqttClient.on('error', (err) => {
@@ -513,7 +551,6 @@ mqttClient.on('message', async (topic, message) => {
     } else if (topic === `${BASE_TOPIC}/mode/set`) {
       let modeCode = 4; // Fallback: Custom
 
-      // 1. Suche nach Treffer in den Klartext-Namen
       for (const [code, name] of client.evModeMap.entries()) {
         if (name.toLowerCase() === payload.toLowerCase()) {
           modeCode = code;
@@ -521,7 +558,6 @@ mqttClient.on('message', async (topic, message) => {
         }
       }
 
-      // 2. Abwärtskompatibilität für reine Zahlen oder Schlüsselwörter (evcc/skripte)
       if (!isNaN(payload)) {
         modeCode = Number(payload);
       } else if (payload.toLowerCase() === 'custom') {
