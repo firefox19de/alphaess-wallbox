@@ -4,8 +4,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
 
 from .api import AlphaWebApiClient
+from .const import DOMAIN
 
-DOMAIN = "alphaess_wallbox"
 PLATFORMS = ["select", "number"]
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +28,5 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         client = hass.data[DOMAIN].pop(entry.entry_id)
-        # Session sauber schliessen
         await client.close()
     return unload_ok
