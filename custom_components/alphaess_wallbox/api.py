@@ -1,10 +1,10 @@
-import aiohttp
 import logging
+import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
 class AlphaWebApiClient:
-    """Client fÃ¼r die inoffizielle AlphaESS Cloud Web-API."""
+    """Client für die inoffizielle AlphaESS Cloud Web-API."""
 
     def __init__(self, username: str, password: str, base_url: str = "https://eurcloud.alphaess.com"):
         self.username = username
@@ -19,7 +19,7 @@ class AlphaWebApiClient:
         return self._session
 
     async def close(self) -> None:
-        """SchlieÃt die aiohttp Session sauber."""
+        """Schließt die aiohttp Session sauber."""
         if self._session and not self._session.closed:
             await self._session.close()
 
@@ -31,23 +31,35 @@ class AlphaWebApiClient:
             "username": self.username,
             "password": self.password
         }
-        
+        headers = {
+            "Content-Type": "application/json;charset=UTF-8",
+            "Accept": "application/json, text/plain, */*",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+
         try:
-            async with session.post(login_url, json=payload, timeout=10) as response:
+            async with session.post(login_url, json=payload, headers=headers, timeout=10) as response:
+                if response.status == 204:
+                    _LOGGER.warning("AlphaESS API antwortete mit Status 204 (Ungültige Anmeldedaten oder leere Antwort)")
+                    return False
+
                 if response.status == 200:
                     data = await response.json()
                     if data.get("code") == 200 or data.get("success"):
                         self._token = data.get("data", {}).get("accessToken")
                         _LOGGER.info("AlphaESS Web API Login erfolgreich!")
                         return True
-            _LOGGER.error("AlphaESS Web API Login fehlgeschlagen: Status %s", response.status)
-            return False
+                    _LOGGER.error("AlphaESS API Login-Fehler in JSON Response: %s", data)
+                    return False
+
+                _LOGGER.error("AlphaESS Web API Login fehlgeschlagen: Status %s", response.status)
+                return False
         except Exception as err:
             _LOGGER.error("Fehler beim Login an AlphaESS Web-API: %s", err)
             return False
 
     async def set_charging_current(self, sys_sn: str, current: int) -> bool:
-        """Setzt die StromstÃ¤rke in Ampere."""
+        """Setzt die Stromstärke in Ampere."""
         return await self._send_command("/api/EVCharger/SetCurrent", {"sysSn": sys_sn, "current": current})
 
     async def set_phases(self, sys_sn: str, phases: int) -> bool:
@@ -61,12 +73,17 @@ class AlphaWebApiClient:
     async def _send_command(self, endpoint: str, payload: dict) -> bool:
         session = await self._get_session()
         url = f"{self.base_url}{endpoint}"
-        headers = {"Authorization": f"Bearer {self._token}"} if self._token else {}
+        headers = {
+            "Content-Type": "application/json;charset=UTF-8",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        }
+        if self._token:
+            headers["Authorization"] = f"Bearer {self._token}"
 
         async with session.post(url, json=payload, headers=headers) as response:
             if response.status == 401:  # Token abgelaufen -> Re-Login
                 if await self.login():
-                    headers = {"Authorization": f"Bearer {self._token}"}
+                    headers["Authorization"] = f"Bearer {self._token}"
                     async with session.post(url, json=payload, headers=headers) as retry_res:
                         return retry_res.status == 200
             return response.status == 200

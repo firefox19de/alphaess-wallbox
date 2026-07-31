@@ -4,8 +4,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN if "const" in globals() else "alphaess_wallbox"
-
+DOMAIN = "alphaess_wallbox"
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
@@ -13,8 +12,8 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Richtet die Number-EntitÃ¤ten fÃ¼r die Wallbox ein."""
-    client = hass.data["alphaess_wallbox"][entry.entry_id]
+    """Richtet die Number-Entitaeten fuer die Wallbox ein."""
+    client = hass.data[DOMAIN][entry.entry_id]
     sys_sn = entry.data.get("sys_sn", entry.entry_id)
 
     async_add_entities([AlphaWallboxCurrentNumber(client, sys_sn)])
@@ -36,7 +35,7 @@ class AlphaWallboxCurrentNumber(NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         target_current = int(value)
         _LOGGER.info(f"Setting Wallbox Current to {target_current}A")
-        
+
         await self._api.set_charging_current(self._sys_sn, target_current)
         self._attr_native_value = target_current
         self.async_write_ha_state()

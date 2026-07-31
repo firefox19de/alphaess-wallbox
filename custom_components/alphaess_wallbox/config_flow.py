@@ -29,7 +29,7 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     title=f"AlphaESS Web ({user_input[CONF_USERNAME]})",
                     data=user_input
                 )
-                
+
             errors["base"] = "invalid_auth"
 
         # Formular-Schema definieren
