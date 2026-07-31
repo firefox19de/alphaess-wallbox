@@ -14,11 +14,13 @@ MODE_MAP = {
     "Eco / Schnellladung": 3,
     "Custom / Manuell (evcc-Steuerung)": 4,
 }
+REVERSE_MODE_MAP = {v: k for k, v in MODE_MAP.items()}
 
 PHASE_MAP = {
     "1-phasig": 1,
     "3-phasig": 3,
 }
+REVERSE_PHASE_MAP = {v: k for k, v in PHASE_MAP.items()}
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -43,6 +45,14 @@ class AlphaESSModeSelect(SelectEntity):
         self._attr_options = list(MODE_MAP.keys())
         self._attr_current_option = "Custom / Manuell (evcc-Steuerung)"
 
+    async def async_update(self) -> None:
+        """Holt den aktuellen Zustand aus der Cloud."""
+        status = await self._api.get_wallbox_status()
+        if status and "charging_mode" in status:
+            mode_code = status["charging_mode"]
+            if mode_code in REVERSE_MODE_MAP:
+                self._attr_current_option = REVERSE_MODE_MAP[mode_code]
+
     async def async_select_option(self, option: str) -> None:
         """Aendert den Lademodus."""
         mode_code = MODE_MAP.get(option, 4)
@@ -63,6 +73,14 @@ class AlphaESSPhaseSelect(SelectEntity):
         self._attr_unique_id = f"{entry_id}_charging_phase"
         self._attr_options = list(PHASE_MAP.keys())
         self._attr_current_option = "3-phasig"
+
+    async def async_update(self) -> None:
+        """Holt die aktuelle Phasenkonfiguration aus der Cloud."""
+        status = await self._api.get_wallbox_status()
+        if status and "phase" in status:
+            phase_code = status["phase"]
+            if phase_code in REVERSE_PHASE_MAP:
+                self._attr_current_option = REVERSE_PHASE_MAP[phase_code]
 
     async def async_select_option(self, option: str) -> None:
         """Aendert die Phasenanzahl."""

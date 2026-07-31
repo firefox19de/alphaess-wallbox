@@ -4,7 +4,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-DOMAIN = "alphaess_wallbox"
+from .const import DOMAIN
+
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
@@ -18,7 +19,8 @@ async def async_setup_entry(
 
 class AlphaWallboxCurrentNumber(NumberEntity):
     """Steuerung des Maximalstroms (6A - 16A)."""
-    def __init__(self, api_client, entry_id):
+
+    def __init__(self, api_client, entry_id: str):
         self._api = api_client
         self._attr_name = "Wallbox Maximalstrom"
         self._attr_unique_id = f"{entry_id}_wallbox_max_current"
@@ -29,11 +31,17 @@ class AlphaWallboxCurrentNumber(NumberEntity):
         self._attr_mode = NumberMode.SLIDER
         self._attr_native_value = 16
 
+    async def async_update(self) -> None:
+        """Liest die aktuell eingestellte Stromstaerke aus der Cloud."""
+        status = await self._api.get_wallbox_status()
+        if status and "max_current" in status and status["max_current"] > 0:
+            self._attr_native_value = status["max_current"]
+
     async def async_set_native_value(self, value: float) -> None:
         target_current = int(value)
-        _LOGGER.info(f"Setting Wallbox Current to {target_current}A")
+        _LOGGER.info("Setting Wallbox Current to %sA", target_current)
 
-        # FIX: self._sys_sn entfernt, da api.py das system_sn intern verwaltet
-        await self._api.set_charging_current(target_current)
-        self._attr_native_value = target_current
-        self.async_write_ha_state()
+        success = await self._api.set_charging_current(target_current)
+        if success:
+            self._attr_native_value = target_current
+            self.async_write_ha_state()
