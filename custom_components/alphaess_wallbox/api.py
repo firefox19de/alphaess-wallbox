@@ -1,4 +1,4 @@
-import aiohttp
+﻿import aiohttp
 import logging
 
 _LOGGER = logging.getLogger(__name__)
@@ -13,10 +13,15 @@ class AlphaWebApiClient:
         self._session: aiohttp.ClientSession | None = None
         self._token: str | None = None
 
-    async def _get_session(() -> aiohttp.ClientSession:
+    async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()
         return self._session
+
+    async def close(self) -> None:
+        """Schließt die aiohttp Session sauber."""
+        if self._session and not self._session.closed:
+            await self._session.close()
 
     async def login(self) -> bool:
         """Meldet sich an der Web-API an und holt die Session/Token."""
@@ -31,7 +36,6 @@ class AlphaWebApiClient:
             async with session.post(login_url, json=payload, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Anpassen je nach tatsächlicher Payload-Struktur deiner Server.js
                     if data.get("code") == 200 or data.get("success"):
                         self._token = data.get("data", {}).get("accessToken")
                         _LOGGER.info("AlphaESS Web API Login erfolgreich!")

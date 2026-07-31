@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
@@ -10,7 +10,7 @@ PLATFORMS = ["select", "number"]
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Richtet die Integration ueber die Config Flow Daten ein."""
+    """Richtet die Integration über die Config Flow Daten ein."""
     client = AlphaWebApiClient(
         username=entry.data[CONF_USERNAME],
         password=entry.data[CONF_PASSWORD],
@@ -27,5 +27,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Entfernt die Integration sauber."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        client = hass.data[DOMAIN].pop(entry.entry_id)
+        # Session sauber schließen
+        await client.close()
     return unload_ok

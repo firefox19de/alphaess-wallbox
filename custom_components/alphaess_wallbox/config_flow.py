@@ -1,4 +1,4 @@
-import voluptuous as vol
+﻿import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
 
@@ -22,14 +22,15 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 base_url=user_input[CONF_URL]
             )
             success = await client.login()
+            await client.close()
 
             if success:
                 return self.async_create_entry(
                     title=f"AlphaESS Web ({user_input[CONF_USERNAME]})",
                     data=user_input
                 )
-            else:
-                errors["base"] = "invalid_auth"
+                
+            errors["base"] = "invalid_auth"
 
         # Formular-Schema definieren
         data_schema = vol.Schema({

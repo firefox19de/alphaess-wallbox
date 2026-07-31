@@ -1,7 +1,23 @@
-import logging
+﻿import logging
 from homeassistant.components.number import NumberEntity, NumberMode
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
+from .const import DOMAIN if "const" in globals() else "alphaess_wallbox"
 
 _LOGGER = logging.getLogger(__name__)
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Richtet die Number-Entitäten für die Wallbox ein."""
+    client = hass.data["alphaess_wallbox"][entry.entry_id]
+    sys_sn = entry.data.get("sys_sn", entry.entry_id)
+
+    async_add_entities([AlphaWallboxCurrentNumber(client, sys_sn)])
 
 class AlphaWallboxCurrentNumber(NumberEntity):
     """Steuerung des Maximalstroms (6A - 32A)."""

@@ -1,6 +1,9 @@
-import asyncio
+﻿import asyncio
 import logging
 from homeassistant.components.select import SelectEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -10,6 +13,21 @@ MODE_OPTIONS = {
     "Schnellladung (Eco 3)": 3,
     "Custom / Manuell (evcc-Steuerung)": 4
 }
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Richtet die Select-Entitäten für die Wallbox ein."""
+    client = hass.data["alphaess_wallbox"][entry.entry_id]
+    sys_sn = entry.data.get("sys_sn", entry.entry_id)
+    charger_sn = entry.data.get("charger_sn", "default_charger")
+
+    async_add_entities([
+        AlphaWallboxModeSelect(client, sys_sn),
+        AlphaWallboxPhaseSelect(hass, client, sys_sn, charger_sn)
+    ])
 
 class AlphaWallboxModeSelect(SelectEntity):
     """Lademodus Auswahl (Eco vs Custom)."""
@@ -25,11 +43,9 @@ class AlphaWallboxModeSelect(SelectEntity):
         mode_code = MODE_OPTIONS.get(option, 4)
         _LOGGER.info(f"Setting Wallbox Mode to: {option} ({mode_code})")
         
-        # Aufruf an AlphaESS Web-API
         await self._api.set_charge_mode(self._sys_sn, mode_code)
         self._attr_current_option = option
         self.async_write_ha_state()
-
 
 class AlphaWallboxPhaseSelect(SelectEntity):
     """Phasenwahl mit integrierten Hardware Guard-Delays."""
