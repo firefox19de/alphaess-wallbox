@@ -56,7 +56,7 @@ class AlphaWallboxPhaseSelect(SelectEntity):
         # Guard Delay 1: Relais entlasten
         await asyncio.sleep(3.5)
 
-        # 2. Phasen Umschaltung über Web-API
+        # 2. Phasen Umschaltung Ã¼ber Web-API
         await self._api.set_phases(self._sys_sn, target_phases)
         self._attr_current_option = option
         self.async_write_ha_state()

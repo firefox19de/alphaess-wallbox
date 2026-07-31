@@ -4,7 +4,7 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 class AlphaWebApiClient:
-    """Client für die inoffizielle AlphaESS Cloud Web-API."""
+    """Client fÃ¼r die inoffizielle AlphaESS Cloud Web-API."""
 
     def __init__(self, username: str, password: str, base_url: str = "https://eurcloud.alphaess.com"):
         self.username = username
@@ -31,7 +31,7 @@ class AlphaWebApiClient:
             async with session.post(login_url, json=payload, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    # Anpassen je nach tatsächlicher Payload-Struktur deiner Server.js
+                    # Anpassen je nach tatsÃ¤chlicher Payload-Struktur deiner Server.js
                     if data.get("code") == 200 or data.get("success"):
                         self._token = data.get("data", {}).get("accessToken")
                         _LOGGER.info("AlphaESS Web API Login erfolgreich!")
@@ -43,7 +43,7 @@ class AlphaWebApiClient:
             return False
 
     async def set_charging_current(self, sys_sn: str, current: int) -> bool:
-        """Setzt die Stromstärke in Ampere."""
+        """Setzt die StromstÃ¤rke in Ampere."""
         return await self._send_command("/api/EVCharger/SetCurrent", {"sysSn": sys_sn, "current": current})
 
     async def set_phases(self, sys_sn: str, phases: int) -> bool:
