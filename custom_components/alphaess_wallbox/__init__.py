@@ -10,7 +10,7 @@ PLATFORMS = ["select", "number"]
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Richtet die Integration über die Config Flow Daten ein."""
+    """Richtet die Integration Ã¼ber die Config Flow Daten ein."""
     client = AlphaWebApiClient(
         username=entry.data[CONF_USERNAME],
         password=entry.data[CONF_PASSWORD],
@@ -19,7 +19,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
 
-    # Lädt select.py und number.py
+    # LÃ¤dt select.py und number.py
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
