@@ -14,17 +14,14 @@ async def async_setup_entry(
 ) -> None:
     """Richtet die Number-Entitaeten fuer die Wallbox ein."""
     client = hass.data[DOMAIN][entry.entry_id]
-    sys_sn = entry.data.get("sys_sn", entry.entry_id)
-
-    async_add_entities([AlphaWallboxCurrentNumber(client, sys_sn)])
+    async_add_entities([AlphaWallboxCurrentNumber(client, entry.entry_id)])
 
 class AlphaWallboxCurrentNumber(NumberEntity):
-    """Steuerung des Maximalstroms (6A - 32A)."""
-    def __init__(self, api_client, sys_sn):
+    """Steuerung des Maximalstroms (6A - 16A)."""
+    def __init__(self, api_client, entry_id):
         self._api = api_client
-        self._sys_sn = sys_sn
         self._attr_name = "Wallbox Maximalstrom"
-        self._attr_unique_id = f"{sys_sn}_wallbox_max_current"
+        self._attr_unique_id = f"{entry_id}_wallbox_max_current"
         self._attr_native_min_value = 6
         self._attr_native_max_value = 16
         self._attr_native_step = 1
@@ -36,6 +33,7 @@ class AlphaWallboxCurrentNumber(NumberEntity):
         target_current = int(value)
         _LOGGER.info(f"Setting Wallbox Current to {target_current}A")
 
-        await self._api.set_charging_current(self._sys_sn, target_current)
+        # FIX: self._sys_sn entfernt, da api.py das system_sn intern verwaltet
+        await self._api.set_charging_current(target_current)
         self._attr_native_value = target_current
         self.async_write_ha_state()
