@@ -7,6 +7,6 @@
   "integration_type": "device",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/firefox19de/alphaess-wallbox/issues",
-  "requirements": [],
+  "requirements": ["pycryptodome>=3.18.0"],
   "version": "2.2.2"
 }
