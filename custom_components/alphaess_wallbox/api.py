@@ -1,11 +1,29 @@
+import base64
+import hashlib
 import logging
 import aiohttp
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad
 
 _LOGGER = logging.getLogger(__name__)
 
-class AlphaWebApiClient:
-    """Client für die inoffizielle AlphaESS Cloud Web-API."""
+def encrypt_password(password: str, username: str) -> str:
+    """Portierung der CryptoJS AES-CBC Verschlüsselung aus Node.js."""
+    # Key = SHA256(username) (32 Bytes)
+    key = hashlib.sha256(username.encode("utf-8")).digest()
+    
+    # IV = MD5(username) (16 Bytes)
+    iv = hashlib.md5(username.encode("utf-8")).digest()
+    
+    # AES-CBC mit PKCS7 Padding
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    padded_data = pad(password.encode("utf-8"), AES.block_size)
+    encrypted_bytes = cipher.encrypt(padded_data)
+    
+    return base64.b64encode(encrypted_bytes).decode("utf-8")
 
+
+class AlphaWebApiClient:
     def __init__(self, username: str, password: str, base_url: str = "https://eurcloud.alphaess.com"):
         self.username = username
         self.password = password
@@ -15,75 +33,56 @@ class AlphaWebApiClient:
 
     async def _get_session(self) -> aiohttp.ClientSession:
         if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession()
+            # CookieJar ist notwendig, da AlphaESS Cookies verwendet
+            self._session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar())
         return self._session
 
-    async def close(self) -> None:
-        """Schließt die aiohttp Session sauber."""
-        if self._session and not self._session.closed:
-            await self._session.close()
-
     async def login(self) -> bool:
-        """Meldet sich an der Web-API an und holt die Session/Token."""
+        """Führt den 3-stufigen Login-Prozess mit verschlüsseltem Passwort aus."""
         session = await self._get_session()
-        login_url = f"{self.base_url}/api/Account/Login"
-        payload = {
-            "username": self.username,
-            "password": self.password
-        }
+        
+        # Identische Header wie im Node.js Skript
         headers = {
             "Content-Type": "application/json;charset=UTF-8",
             "Accept": "application/json, text/plain, */*",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+            "Client-End": "Web",
+            "System": "alphacloud",
+            "platform": "AK9D8H",
+            "Language": "de-DE",
+            "X-Requested-With": "XMLHttpRequest",
         }
 
         try:
-            async with session.post(login_url, json=payload, headers=headers, timeout=10) as response:
-                if response.status == 204:
-                    _LOGGER.warning("AlphaESS API antwortete mit Status 204 (Ungültige Anmeldedaten oder leere Antwort)")
-                    return False
+            # Schritt 1: Cookie/Session holen
+            await session.post(f"{self.base_url}/login", headers=headers, timeout=10)
 
+            # Schritt 2: Pilot Check
+            pilot_url = f"{self.base_url}/api/usercenter/cloud/user/pilot"
+            await session.post(pilot_url, json={"username": self.username, "pilot": False}, headers=headers, timeout=10)
+
+            # Schritt 3: Eigentlicher Login mit verschlüsseltem Passwort
+            login_url = f"{self.base_url}/api/usercenter/cloud/user/login"
+            encrypted_pwd = encrypt_password(self.password, self.username)
+            
+            payload = {
+                "username": self.username,
+                "password": encrypted_pwd
+            }
+
+            async with session.post(login_url, json=payload, headers=headers, timeout=10) as response:
                 if response.status == 200:
                     data = await response.json()
-                    if data.get("code") == 200 or data.get("success"):
-                        self._token = data.get("data", {}).get("accessToken")
+                    if data.get("code") == 200 or (data.get("data") and data["data"].get("token")):
+                        self._token = data["data"]["token"]
                         _LOGGER.info("AlphaESS Web API Login erfolgreich!")
                         return True
-                    _LOGGER.error("AlphaESS API Login-Fehler in JSON Response: %s", data)
+                    _LOGGER.error("AlphaESS Login fehlgeschlagen mit Payload: %s", data)
                     return False
-
-                _LOGGER.error("AlphaESS Web API Login fehlgeschlagen: Status %s", response.status)
+                
+                _LOGGER.error("AlphaESS Login HTTP-Status %s", response.status)
                 return False
+
         except Exception as err:
-            _LOGGER.error("Fehler beim Login an AlphaESS Web-API: %s", err)
+            _LOGGER.error("Fehler beim AlphaESS Login: %s", err)
             return False
-
-    async def set_charging_current(self, sys_sn: str, current: int) -> bool:
-        """Setzt die Stromstärke in Ampere."""
-        return await self._send_command("/api/EVCharger/SetCurrent", {"sysSn": sys_sn, "current": current})
-
-    async def set_phases(self, sys_sn: str, phases: int) -> bool:
-        """Setzt die Phasenanzahl (1 oder 3)."""
-        return await self._send_command("/api/EVCharger/SetPhases", {"sysSn": sys_sn, "phases": phases})
-
-    async def set_charge_mode(self, sys_sn: str, mode: int) -> bool:
-        """Setzt den Lademodus (1=Langsam, 2=Schon, 3=Schnell, 4=Custom)."""
-        return await self._send_command("/api/EVCharger/SetMode", {"sysSn": sys_sn, "mode": mode})
-
-    async def _send_command(self, endpoint: str, payload: dict) -> bool:
-        session = await self._get_session()
-        url = f"{self.base_url}{endpoint}"
-        headers = {
-            "Content-Type": "application/json;charset=UTF-8",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        }
-        if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
-
-        async with session.post(url, json=payload, headers=headers) as response:
-            if response.status == 401:  # Token abgelaufen -> Re-Login
-                if await self.login():
-                    headers["Authorization"] = f"Bearer {self._token}"
-                    async with session.post(url, json=payload, headers=headers) as retry_res:
-                        return retry_res.status == 200
-            return response.status == 200
