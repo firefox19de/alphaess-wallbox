@@ -1,4 +1,4 @@
-ï»¿import aiohttp
+import aiohttp
 import logging
 
 _LOGGER = logging.getLogger(__name__)

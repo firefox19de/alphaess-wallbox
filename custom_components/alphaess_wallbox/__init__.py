@@ -1,4 +1,4 @@
-ï»¿import logging
+import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL

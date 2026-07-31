@@ -1,4 +1,4 @@
-ï»¿import asyncio
+import asyncio
 import logging
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry

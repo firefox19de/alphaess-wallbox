@@ -1,4 +1,4 @@
-ï»¿import voluptuous as vol
+import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
 

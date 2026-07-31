@@ -1,4 +1,4 @@
-ï»¿import logging
+import logging
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
