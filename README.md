@@ -1,6 +1,6 @@
 # AlphaESS EVCT11 MQTT Bridge
 
-Eine performante Web-API Bridge für die AlphaESS EVCT11 Wallbox zur nahtlosen Steuerung über **MQTT**, **evcc** und **Home Assistant**.
+Eine performante Web-API Bridge fÃ¼r die AlphaESS EVCT11 Wallbox zur nahtlosen Steuerung Ã¼ber **MQTT**, **evcc** und **Home Assistant**.
 
 > **Wichtiger Hinweis (Disclaimer):**  
 > Dieses Projekt ist eine inoffizielle Bridge, welche die AlphaESS Web-Schnittstelle nutzt. Die Nutzung erfolgt auf eigene Verantwortung. Es besteht keinerlei Verbindung zur Alpha ESS Co., Ltd.  
@@ -10,12 +10,12 @@ Eine performante Web-API Bridge für die AlphaESS EVCT11 Wallbox zur nahtlosen St
 ## Features
 
 * **Anbindung via AlphaESS Web API:** Keine lokalen Hardware-Modifikationen erforderlich.
-* **evcc Kompatibilität:** Bietet alle Steuerungsendpunkte (Enable, Current, Phases, Mode).
-* **Sichere Phasenumschaltung (1P/3P):** Führt bei aktiver Ladung eine automatisierte Stop-Wait-Switch-Start-Sequenz durch, um Hardwareschäden an den Schützen zu vermeiden.
-* **Konfigurierbares Dynamic Polling & Guardrails:** Wählbare Intervalle für Leerlauf und aktives Laden inklusive hartem Minimum-Schutz im Code (Guardrail) gegen versehentliches API-Spamming.
-* **Rate-Limit & Backoff-Handling:** Automatisches Ausweichen mit Jitter-Verzögerung bei HTTP 429 / 403 Fehlern zum Schutz vor temporären Cloud-Sperren.
+* **evcc KompatibilitÃ¤t:** Bietet alle Steuerungsendpunkte (Enable, Current, Phases, Mode).
+* **Sichere Phasenumschaltung (1P/3P):** FÃ¼hrt bei aktiver Ladung eine automatisierte Stop-Wait-Switch-Start-Sequenz durch, um HardwareschÃ¤den an den SchÃ¼tzen zu vermeiden.
+* **Konfigurierbares Dynamic Polling & Guardrails:** WÃ¤hlbare Intervalle fÃ¼r Leerlauf und aktives Laden inklusive hartem Minimum-Schutz im Code (Guardrail) gegen versehentliches API-Spamming.
+* **Rate-Limit & Backoff-Handling:** Automatisches Ausweichen mit Jitter-VerzÃ¶gerung bei HTTP 429 / 403 Fehlern zum Schutz vor temporÃ¤ren Cloud-Sperren.
 * **On-Demand Refresh:** Sofortiges Feedback bei empfangenen Steuerbefehlen.
-* **Erweitertes Home Assistant Auto-Discovery:** Automatische Registrierung aller Sensoren sowie interaktiver Steuerungselemente (Schalter, Schieberegler, Auswahlmenüs).
+* **Erweitertes Home Assistant Auto-Discovery:** Automatische Registrierung aller Sensoren sowie interaktiver Steuerungselemente (Schalter, Schieberegler, AuswahlmenÃ¼s).
 
 ---
 
@@ -23,24 +23,24 @@ Eine performante Web-API Bridge für die AlphaESS EVCT11 Wallbox zur nahtlosen St
 
 | Option | Beschreibung | Standardwert |
 | :--- | :--- | :--- |
-| `ALPHAESS_USERNAME` | Benutzername (E-Mail) für AlphaESS Cloud | *Erforderlich* |
-| `ALPHAESS_PASSWORD` | Passwort für AlphaESS Cloud | *Erforderlich* |
+| `ALPHAESS_USERNAME` | Benutzername (E-Mail) fÃ¼r AlphaESS Cloud | *Erforderlich* |
+| `ALPHAESS_PASSWORD` | Passwort fÃ¼r AlphaESS Cloud | *Erforderlich* |
 | `ALPHAESS_BASE_URL` | Cloud Endpoint URL | `https://eurcloud.alphaess.com` |
 | `POLLING_IDLE` | Polling-Intervall im Leerlauf (State A) in Sekunden | `120` |
 | `POLLING_ACTIVE` | Polling-Intervall beim aktiven Laden in Sekunden | `15` |
-| `MIN_POLLING_LIMIT` | Untere Grenze für Polling-Intervalle (Guardrail) | `10` |
+| `MIN_POLLING_LIMIT` | Untere Grenze fÃ¼r Polling-Intervalle (Guardrail) | `10` |
 | `BACKOFF_DELAY` | Wartezeit bei Cloud-Sperren (HTTP 429/403) in Sekunden | `300` |
 | `MQTT_BROKER` | Adresse des MQTT Brokers | `mqtt://homeassistant:1883` |
-| `MQTT_USER` | MQTT Benutzer (falls benötigt) | *optional* |
-| `MQTT_PASSWORD` | MQTT Passwort (falls benötigt) | *optional* |
-| `MQTT_BASE_TOPIC` | Basis-Topic für MQTT Status & Steuerung | `evcc/chargers/alphaess` |
+| `MQTT_USER` | MQTT Benutzer (falls benÃ¶tigt) | *optional* |
+| `MQTT_PASSWORD` | MQTT Passwort (falls benÃ¶tigt) | *optional* |
+| `MQTT_BASE_TOPIC` | Basis-Topic fÃ¼r MQTT Status & Steuerung | `evcc/chargers/alphaess` |
 | `MQTT_HA_DISCOVERY` | Home Assistant Auto-Discovery aktivieren | `true` |
 
 ---
 
 ## Home Assistant Integration (Auto-Discovery)
 
-Wenn `MQTT_HA_DISCOVERY` aktiviert ist, wird die Wallbox automatisch als Gerät in Home Assistant angelegt und stellt folgende Entitäten bereit:
+Wenn `MQTT_HA_DISCOVERY` aktiviert ist, wird die Wallbox automatisch als GerÃ¤t in Home Assistant angelegt und stellt folgende EntitÃ¤ten bereit:
 
 ### Sensoren (Read-Only)
 * **Wallbox Status** (`sensor`): Fahrzeugstatus (`A`, `B`, `C`, `F`)
@@ -48,8 +48,8 @@ Wenn `MQTT_HA_DISCOVERY` aktiviert ist, wird die Wallbox automatisch als Gerät i
 
 ### Steuerungselemente (Interactive Entities)
 * **Ladefreigabe** (`switch`): Schalter zum Starten und Stoppen des Ladevorgangs.
-* **Maximalstrom** (`number`): Schieberegler zur Wahl der Stromstärke (6 A bis 16 A).
-* **Phasen** (`select`): Dropdown-Auswahl für 1-phasiges (`1`) oder 3-phasiges (`3`) Laden.
+* **Maximalstrom** (`number`): Schieberegler zur Wahl der StromstÃ¤rke (6 A bis 16 A).
+* **Phasen** (`select`): Dropdown-Auswahl fÃ¼r 1-phasiges (`1`) oder 3-phasiges (`3`) Laden.
 * **Lademodus** (`select`): Dropdown-Auswahl zwischen Custom/evcc (`4`) und Eco/Schonladung (`2`).
 
 ---
@@ -60,14 +60,14 @@ Wenn `MQTT_HA_DISCOVERY` aktiviert ist, wird die Wallbox automatisch als Gerät i
 
 * `evcc/chargers/alphaess/status`: Vehicle Status (`A`, `B`, `C`, `F`)
 * `evcc/chargers/alphaess/enabled`: Ladestatus (`true` / `false`)
-* `evcc/chargers/alphaess/maxcurrent`: Aktuell eingestellte Stromstärke in Ampere
+* `evcc/chargers/alphaess/maxcurrent`: Aktuell eingestellte StromstÃ¤rke in Ampere
 * `evcc/chargers/alphaess/power`: Errechnete Zielleistung in Watt
 * `evcc/chargers/alphaess/phases`: Aktuell eingestellte Phasenzahl (`1` / `3`)
 
 ### Subscribe Topics (Steuerung)
 
 * `evcc/chargers/alphaess/enable/set`: Ladevorgang starten/stoppen (`true` / `false`)
-* `evcc/chargers/alphaess/maxcurrent/set`: Ziel-Stromstärke setzen (z. B. `6` bis `16`)
+* `evcc/chargers/alphaess/maxcurrent/set`: Ziel-StromstÃ¤rke setzen (z. B. `6` bis `16`)
 * `evcc/chargers/alphaess/phases/set`: Phasenumschaltung (`1` oder `3`)
 * `evcc/chargers/alphaess/mode/set`: Lademodus setzen (`custom` oder `2`)
 

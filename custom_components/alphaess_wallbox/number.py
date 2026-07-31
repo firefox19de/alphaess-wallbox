@@ -1,4 +1,4 @@
-﻿import logging
+ï»¿import logging
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -13,7 +13,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Richtet die Number-Entitäten für die Wallbox ein."""
+    """Richtet die Number-EntitÃ¤ten fÃ¼r die Wallbox ein."""
     client = hass.data["alphaess_wallbox"][entry.entry_id]
     sys_sn = entry.data.get("sys_sn", entry.entry_id)
 

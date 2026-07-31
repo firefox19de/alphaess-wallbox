@@ -1,10 +1,10 @@
-﻿import aiohttp
+ï»¿import aiohttp
 import logging
 
 _LOGGER = logging.getLogger(__name__)
 
 class AlphaWebApiClient:
-    """Client für die inoffizielle AlphaESS Cloud Web-API."""
+    """Client fÃ¼r die inoffizielle AlphaESS Cloud Web-API."""
 
     def __init__(self, username: str, password: str, base_url: str = "https://eurcloud.alphaess.com"):
         self.username = username
@@ -19,7 +19,7 @@ class AlphaWebApiClient:
         return self._session
 
     async def close(self) -> None:
-        """Schließt die aiohttp Session sauber."""
+        """SchlieÃt die aiohttp Session sauber."""
         if self._session and not self._session.closed:
             await self._session.close()
 
@@ -47,7 +47,7 @@ class AlphaWebApiClient:
             return False
 
     async def set_charging_current(self, sys_sn: str, current: int) -> bool:
-        """Setzt die Stromstärke in Ampere."""
+        """Setzt die StromstÃ¤rke in Ampere."""
         return await self._send_command("/api/EVCharger/SetCurrent", {"sysSn": sys_sn, "current": current})
 
     async def set_phases(self, sys_sn: str, phases: int) -> bool:

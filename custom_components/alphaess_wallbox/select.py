@@ -1,4 +1,4 @@
-﻿import asyncio
+ï»¿import asyncio
 import logging
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
@@ -19,7 +19,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Richtet die Select-Entitäten für die Wallbox ein."""
+    """Richtet die Select-EntitÃ¤ten fÃ¼r die Wallbox ein."""
     client = hass.data["alphaess_wallbox"][entry.entry_id]
     sys_sn = entry.data.get("sys_sn", entry.entry_id)
     charger_sn = entry.data.get("charger_sn", "default_charger")
@@ -72,7 +72,7 @@ class AlphaWallboxPhaseSelect(SelectEntity):
         # Guard Delay 1: Relais entlasten
         await asyncio.sleep(3.5)
 
-        # 2. Phasen Umschaltung über Web-API
+        # 2. Phasen Umschaltung Ã¼ber Web-API
         await self._api.set_phases(self._sys_sn, target_phases)
         self._attr_current_option = option
         self.async_write_ha_state()
