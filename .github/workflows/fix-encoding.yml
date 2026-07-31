@@ -1,0 +1,43 @@
+name: Fix File Encoding (UTF-8 without BOM)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Erlaubt manuelles Ausführen über die GitHub UI
+
+jobs:
+  fix-bom:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Wichtig, damit die Action committen darf
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Strip BOM from files
+        run: |
+          python3 -c '
+          import glob
+          for pat in ["**/*.py", "**/*.json", "**/*.md"]:
+              for filepath in glob.glob(pat, recursive=True):
+                  try:
+                      with open(filepath, "r", encoding="utf-8-sig") as f:
+                          content = f.read()
+                      with open(filepath, "w", encoding="utf-8") as f:
+                          f.write(content)
+                  except Exception as e:
+                      print(f"Skipping {filepath}: {e}")
+          '
+
+      - name: Commit and Push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "fix(ci): strip UTF-8 BOM from repository files"
+          file_pattern: "*.py *.json *.md"
