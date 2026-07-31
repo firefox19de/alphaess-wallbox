@@ -1,5 +1,9 @@
 import logging
 from homeassistant.components.select import SelectEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
@@ -11,30 +15,32 @@ MODE_MAP = {
     "Custom / Manuell (evcc-Steuerung)": 4,
 }
 
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Richtet die Select-Entitaeten fuer die Wallbox ein."""
+    client = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities([AlphaESSModeSelect(client, entry.entry_id)])
+
+
 class AlphaESSModeSelect(SelectEntity):
     """Select Entity fuer den AlphaESS Lademodus."""
 
-    def __init__(self, coordinator, api, entry):
-        self.coordinator = coordinator
-        self._api = api
+    def __init__(self, api_client, entry_id: str):
+        self._api = api_client
         self._attr_name = "AlphaESS Lademodus"
-        self._attr_unique_id = f"{entry.entry_id}_charge_mode"
+        self._attr_unique_id = f"{entry_id}_charge_mode"
         self._attr_options = list(MODE_MAP.keys())
-
-    @property
-    def current_option(self) -> str | None:
-        mode_code = self.coordinator.data.get("charging_mode") if self.coordinator.data else None
-        for name, code in MODE_MAP.items():
-            if code == mode_code:
-                return name
-        return None
+        self._attr_current_option = "Custom / Manuell (evcc-Steuerung)"
 
     async def async_select_option(self, option: str) -> None:
-        """Ändert den Lademodus."""
+        """Aendert den Lademodus."""
         mode_code = MODE_MAP.get(option, 4)
-        # HIER FIX: self._sys_sn entfernt
         success = await self._api.set_charge_mode(mode_code)
         if success:
-            await self.coordinator.async_request_refresh()
+            self._attr_current_option = option
+            self.async_write_ha_state()
         else:
             _LOGGER.error("Fehler beim Setzen des Lademodus auf %s", option)
