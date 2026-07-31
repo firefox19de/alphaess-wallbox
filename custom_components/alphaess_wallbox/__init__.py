@@ -10,7 +10,7 @@ PLATFORMS = ["select", "number"]
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Richtet die Integration Ã¼ber die Config Flow Daten ein."""
+    """Richtet die Integration über die Config Flow Daten ein."""
     client = AlphaWebApiClient(
         username=entry.data[CONF_USERNAME],
         password=entry.data[CONF_PASSWORD],
@@ -19,7 +19,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
 
-    # LÃ¤dt select.py und number.py
+    # Lädt select.py und number.py
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
@@ -28,6 +28,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         client = hass.data[DOMAIN].pop(entry.entry_id)
-        # Session sauber schlieÃen
+        # Session sauber schließen
         await client.close()
     return unload_ok

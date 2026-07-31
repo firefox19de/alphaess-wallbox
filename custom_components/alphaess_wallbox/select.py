@@ -8,10 +8,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 _LOGGER = logging.getLogger(__name__)
 
 MODE_OPTIONS = {
-    "Langsamladung (Eco 1)": 1,
-    "Schonladung (Eco 2)": 2,
-    "Schnellladung (Eco 3)": 3,
-    "Custom / Manuell (evcc-Steuerung)": 4
+    "ECO => Langsamladung": 1,
+    "ECO => Schonladung": 2,
+    "ECO => Schnellladung": 3,
+    "Custom / Manuell": 4
 }
 
 async def async_setup_entry(
