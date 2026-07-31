@@ -26,7 +26,7 @@ class AlphaWallboxCurrentNumber(NumberEntity):
         self._attr_name = "Wallbox Maximalstrom"
         self._attr_unique_id = f"{sys_sn}_wallbox_max_current"
         self._attr_native_min_value = 6
-        self._attr_native_max_value = 32
+        self._attr_native_max_value = 16
         self._attr_native_step = 1
         self._attr_native_unit_of_measurement = "A"
         self._attr_mode = NumberMode.SLIDER
