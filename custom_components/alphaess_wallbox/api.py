@@ -1,10 +1,15 @@
+import asyncio
 import base64
 from datetime import datetime
 import hashlib
+import json
 import logging
-import aiohttp
+
+from aiohttp import ClientError
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,27 +28,27 @@ def encrypt_password(password: str, username: str) -> str:
 class AlphaWebApiClient:
     """Client für die AlphaESS Cloud Web-API."""
 
-    def __init__(self, username: str, password: str, base_url: str = "https://eurcloud.alphaess.com"):
+    def __init__(self, hass: HomeAssistant, username: str, password: str, base_url: str = "https://eurcloud.alphaess.com"):
+        self.hass = hass
         self.username = username
         self.password = password
         self.base_url = base_url.rstrip("/")
-        self._session: aiohttp.ClientSession | None = None
+        self._session = None
         self._token: str | None = None
-        
+
         self.system_sn: str | None = None
         self.ev_charger_id: str = "EV1"
         self.ev_charger_key: str | None = None
         self.ev_charger_sn: str | None = None
 
-    async def _get_session(self) -> aiohttp.ClientSession:
-        if self._session is None or self._session.closed:
-            self._session = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar())
+    async def _get_session(self):
+        if self._session is None:
+            self._session = async_create_clientsession(self.hass)
         return self._session
 
     async def close(self) -> None:
-        """Schließt die aiohttp Session sauber."""
-        if self._session and not self._session.closed:
-            await self._session.close()
+        """No-op for HA managed aiohttp sessions."""
+        return
 
     def _get_headers(self) -> dict:
         now = datetime.now()
@@ -80,7 +85,12 @@ class AlphaWebApiClient:
 
             async with session.post(login_url, json=payload, headers=headers, timeout=10) as response:
                 if response.status == 200:
-                    data = await response.json()
+                    try:
+                        data = await response.json(content_type=None)
+                    except (json.JSONDecodeError, ValueError) as err:
+                        _LOGGER.error("AlphaESS Login konnte Antwort nicht parsen: %s", err)
+                        return False
+
                     if data.get("code") == 200 or (data.get("data") and data["data"].get("token")):
                         self._token = data["data"]["token"]
                         _LOGGER.info("AlphaESS Web API Login erfolgreich!")
@@ -89,11 +99,11 @@ class AlphaWebApiClient:
                     return False
                 _LOGGER.error("AlphaESS Web API Login fehlgeschlagen: Status %s", response.status)
                 return False
-        except Exception as err:
+        except (ClientError, asyncio.TimeoutError) as err:
             _LOGGER.error("Fehler beim Login an AlphaESS Web-API: %s", err)
             return False
 
-    async def _request(self, method: str, endpoint: str, json_payload: dict = None, params: dict = None) -> dict | None:
+    async def _request(self, method: str, endpoint: str, json_payload: dict | None = None, params: dict | None = None) -> dict | None:
         if not self._token:
             if not await self.login():
                 return None
@@ -102,18 +112,33 @@ class AlphaWebApiClient:
         url = f"{self.base_url}{endpoint}"
         headers = self._get_headers()
 
-        async with session.request(method, url, json=json_payload, params=params, headers=headers) as response:
-            if response.status in (401, 403):
-                _LOGGER.warning("Token abgelaufen, erneuere Session...")
-                if await self.login():
-                    headers = self._get_headers()
-                    async with session.request(method, url, json=json_payload, params=params, headers=headers) as retry_res:
-                        return await retry_res.json()
-                return None
-            
-            if response.status == 200:
-                return await response.json()
+        try:
+            async with session.request(method, url, json=json_payload, params=params, headers=headers, timeout=10) as response:
+                if response.status in (401, 403):
+                    _LOGGER.warning("Token abgelaufen, erneuere Session...")
+                    if await self.login():
+                        headers = self._get_headers()
+                        async with session.request(method, url, json=json_payload, params=params, headers=headers, timeout=10) as retry_res:
+                            return await self._parse_response(retry_res)
+                    return None
+
+                return await self._parse_response(response)
+        except (ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.error("Fehler beim API-Request an AlphaESS: %s", err)
             return None
+
+    async def _parse_response(self, response) -> dict | None:
+        if response.status != 200:
+            _LOGGER.warning("AlphaESS API Antwort mit Status %s: %s", response.status, await response.text())
+            return None
+
+        try:
+            data = await response.json(content_type=None)
+        except (json.JSONDecodeError, ValueError) as err:
+            _LOGGER.error("AlphaESS API Antwort konnte nicht geparst werden: %s", err)
+            return None
+
+        return data
 
     async def load_system_and_charger(self) -> bool:
         """Lädt System-SN und Wallbox-Details."""

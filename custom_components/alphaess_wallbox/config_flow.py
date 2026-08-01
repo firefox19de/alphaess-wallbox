@@ -15,11 +15,12 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            # Login testen
+            base_url = user_input.get(CONF_URL, "https://eurcloud.alphaess.com")
             client = AlphaWebApiClient(
+                self.hass,
                 username=user_input[CONF_USERNAME],
                 password=user_input[CONF_PASSWORD],
-                base_url=user_input[CONF_URL]
+                base_url=base_url,
             )
             success = await client.login()
             await client.close()
@@ -27,7 +28,11 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if success:
                 return self.async_create_entry(
                     title=f"AlphaESS Web ({user_input[CONF_USERNAME]})",
-                    data=user_input
+                    data={
+                        CONF_USERNAME: user_input[CONF_USERNAME],
+                        CONF_PASSWORD: user_input[CONF_PASSWORD],
+                        CONF_URL: base_url,
+                    },
                 )
 
             errors["base"] = "invalid_auth"
@@ -36,7 +41,7 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema({
             vol.Required(CONF_USERNAME): str,
             vol.Required(CONF_PASSWORD): str,
-            vol.Required(CONF_URL, default="https://eurcloud.alphaess.com"): str,
+            vol.Optional(CONF_URL, default="https://eurcloud.alphaess.com"): vol.Url(),
         })
 
         return self.async_show_form(
