@@ -15,18 +15,18 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     client = hass.data[DOMAIN][entry.entry_id]
-    # Warten, bis System- & Wallbox-SN geladen sind
     await client.load_system_and_charger()
     async_add_entities([AlphaWallboxCurrentNumber(client, entry.entry_id)])
 
 class AlphaWallboxCurrentNumber(NumberEntity):
+    has_entity_name = True
+
     def __init__(self, api_client, entry_id: str):
         self._api = api_client
-        sn_prefix = (api_client.system_sn or "alphaess").lower()
         
-        # Name und Unique ID an Charles-Präfix anpassen
-        self._attr_name = f"EV Charger Max Current Setting"
-        self._attr_unique_id = f"{entry_id}_{sn_prefix}_ev_charger_max_current_setting"
+        # Name in der UI (auf der Gerätekarte wird dies als "EV Charger Max Current Setting" angezeigt)
+        self._attr_name = "EV Charger Max Current Setting"
+        self._attr_unique_id = f"{entry_id}_ev_charger_max_current_setting"
         self._attr_native_min_value = 6
         self._attr_native_max_value = 16
         self._attr_native_step = 1
@@ -37,7 +37,7 @@ class AlphaWallboxCurrentNumber(NumberEntity):
 
     @property
     def device_info(self) -> DeviceInfo | None:
-        """Koppelt die Entität direkt an das Gerät in Home Assistant."""
+        """Verknüpft die Entität direkt mit dem Wallbox-Gerät von Charles."""
         if self._api.ev_charger_sn:
             return DeviceInfo(
                 identifiers={(DOMAIN, self._api.ev_charger_sn)},

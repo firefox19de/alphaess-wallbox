@@ -36,11 +36,12 @@ async def async_setup_entry(
     ])
 
 class AlphaESSModeSelect(SelectEntity):
+    has_entity_name = True
+
     def __init__(self, api_client, entry_id: str):
         self._api = api_client
-        sn_prefix = (api_client.system_sn or "alphaess").lower()
         self._attr_name = "EV Charger Charge Mode"
-        self._attr_unique_id = f"{entry_id}_{sn_prefix}_ev_charger_charge_mode"
+        self._attr_unique_id = f"{entry_id}_ev_charger_charge_mode"
         self._attr_options = list(MODE_MAP.keys())
         self._attr_current_option = "Custom / Manuell (evcc-Steuerung)"
         self._attr_icon = "mdi:ev-station"
@@ -71,11 +72,12 @@ class AlphaESSModeSelect(SelectEntity):
             self.async_write_ha_state()
 
 class AlphaESSPhaseSelect(SelectEntity):
+    has_entity_name = True
+
     def __init__(self, api_client, entry_id: str):
         self._api = api_client
-        sn_prefix = (api_client.system_sn or "alphaess").lower()
         self._attr_name = "EV Charger Phases"
-        self._attr_unique_id = f"{entry_id}_{sn_prefix}_ev_charger_phases"
+        self._attr_unique_id = f"{entry_id}_ev_charger_phases"
         self._attr_options = list(PHASE_MAP.keys())
         self._attr_current_option = "3-phasig"
         self._attr_icon = "mdi:phase-change"
