@@ -70,6 +70,7 @@ class AlphaWebApiClient:
 
     async def login(self) -> bool:
         """Führt den 3-stufigen Login-Prozess aus."""
+        self._token = None
         session = await self._get_session()
         headers = self._get_headers()
 
@@ -116,6 +117,7 @@ class AlphaWebApiClient:
             async with session.request(method, url, json=json_payload, params=params, headers=headers, timeout=10) as response:
                 if response.status in (401, 403):
                     _LOGGER.warning("Token abgelaufen, erneuere Session...")
+                    self._token = None
                     if await self.login():
                         headers = self._get_headers()
                         async with session.request(method, url, json=json_payload, params=params, headers=headers, timeout=10) as retry_res:
