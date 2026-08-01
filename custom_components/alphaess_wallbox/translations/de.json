@@ -1,0 +1,22 @@
+{
+  "entity": {
+    "button": {
+      "fetch_status": {
+        "name": "Werte aktualisieren"
+      }
+    },
+    "number": {
+      "maxcurrent": {
+        "name": "Maximalstrom"
+      }
+    },
+    "select": {
+      "phases": {
+        "name": "Phasen"
+      },
+      "mode": {
+        "name": "Lademodus"
+      }
+    }
+  }
+}

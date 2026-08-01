@@ -1,0 +1,22 @@
+{
+  "entity": {
+    "button": {
+      "fetch_status": {
+        "name": "Fetch values"
+      }
+    },
+    "number": {
+      "maxcurrent": {
+        "name": "Max current"
+      }
+    },
+    "select": {
+      "phases": {
+        "name": "Phases"
+      },
+      "mode": {
+        "name": "Charging mode"
+      }
+    }
+  }
+}

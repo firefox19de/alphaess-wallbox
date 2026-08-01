@@ -14,18 +14,29 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    """Richtet die Number-Entitäten für die Wallbox ein."""
     client = hass.data[DOMAIN][entry.entry_id]
     await client.load_system_and_charger()
-    async_add_entities([AlphaWallboxCurrentNumber(client, entry.entry_id)])
+    
+    device_info = DeviceInfo(
+        identifiers={(DOMAIN, client.ev_charger_sn)},
+        name=f"Alpha ESS Charger : {client.ev_charger_sn}",
+        manufacturer="AlphaESS",
+        model="SMILE-EVCT11",
+    )
+    
+    async_add_entities([AlphaWallboxCurrentNumber(client, device_info, entry.entry_id)])
 
 class AlphaWallboxCurrentNumber(NumberEntity):
-    has_entity_name = True
+    """Steuerung des Maximalstroms (6A - 16A)."""
 
-    def __init__(self, api_client, entry_id: str):
+    _attr_has_entity_name = True
+    _attr_translation_key = "maxcurrent"
+    _attr_icon = "mdi:current-ac"
+
+    def __init__(self, api_client, device_info, entry_id: str):
         self._api = api_client
-        
-        # Name in der UI (auf der Gerätekarte wird dies als "EV Charger Max Current Setting" angezeigt)
-        self._attr_name = "EV Charger Max Current Setting"
+        self._attr_device_info = device_info
         self._attr_unique_id = f"{entry_id}_ev_charger_max_current_setting"
         self._attr_native_min_value = 6
         self._attr_native_max_value = 16
@@ -33,21 +44,9 @@ class AlphaWallboxCurrentNumber(NumberEntity):
         self._attr_native_unit_of_measurement = "A"
         self._attr_mode = NumberMode.SLIDER
         self._attr_native_value = 16
-        self._attr_icon = "mdi:current-ac"
-
-    @property
-    def device_info(self) -> DeviceInfo | None:
-        """Verknüpft die Entität direkt mit dem Wallbox-Gerät von Charles."""
-        if self._api.ev_charger_sn:
-            return DeviceInfo(
-                identifiers={(DOMAIN, self._api.ev_charger_sn)},
-                name=f"Alpha ESS Charger : {self._api.ev_charger_sn}",
-                manufacturer="AlphaESS",
-                model="SMILE-EVCT11",
-            )
-        return None
 
     async def async_update(self) -> None:
+        """Liest die aktuell eingestellte Stromstärke aus der Cloud."""
         status = await self._api.get_wallbox_status()
         if status and "max_current" in status and status["max_current"] > 0:
             self._attr_native_value = status["max_current"]
@@ -55,6 +54,7 @@ class AlphaWallboxCurrentNumber(NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         target_current = int(value)
         _LOGGER.info("Setting Wallbox Current to %sA", target_current)
+
         success = await self._api.set_charging_current(target_current)
         if success:
             self._attr_native_value = target_current

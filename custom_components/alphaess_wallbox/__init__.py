@@ -6,7 +6,7 @@ from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
 from .api import AlphaWebApiClient
 from .const import DOMAIN
 
-PLATFORMS = ["select", "number"]
+PLATFORMS = ["select", "number", "button"]
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -19,7 +19,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = client
 
-    # Lädt select.py und number.py
+    # Lädt select.py, number.py und button.py
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 
