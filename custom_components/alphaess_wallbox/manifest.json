@@ -8,5 +8,5 @@
   "iot_class": "cloud_poll",
   "issue_tracker": "https://github.com/firefox19de/alphaess-wallbox/issues",
   "requirements": ["pycryptodome>=3.18.0"],
-  "version": "0.8.5"
+  "version": "0.8.6"
 }
