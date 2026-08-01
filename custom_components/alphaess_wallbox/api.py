@@ -13,15 +13,16 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 _LOGGER = logging.getLogger(__name__)
 
+
 def encrypt_password(password: str, username: str) -> str:
     """Portierung der CryptoJS AES-CBC Verschlüsselung aus Node.js."""
     key = hashlib.sha256(username.encode("utf-8")).digest()
     iv = hashlib.md5(username.encode("utf-8")).digest()
-    
+
     cipher = AES.new(key, AES.MODE_CBC, iv)
     padded_data = pad(password.encode("utf-8"), AES.block_size)
     encrypted_bytes = cipher.encrypt(padded_data)
-    
+
     return base64.b64encode(encrypted_bytes).decode("utf-8")
 
 
@@ -89,16 +90,19 @@ class AlphaWebApiClient:
                     try:
                         data = await response.json(content_type=None)
                     except (json.JSONDecodeError, ValueError) as err:
-                        _LOGGER.error("AlphaESS Login konnte Antwort nicht parsen: %s", err)
+                        _LOGGER.error(
+                            "AlphaESS Login konnte Antwort nicht parsen: %s", err)
                         return False
 
                     if data.get("code") == 200 or (data.get("data") and data["data"].get("token")):
                         self._token = data["data"]["token"]
                         _LOGGER.info("AlphaESS Web API Login erfolgreich!")
                         return True
-                    _LOGGER.error("AlphaESS Login fehlgeschlagen mit Payload: %s", data)
+                    _LOGGER.error(
+                        "AlphaESS Login fehlgeschlagen mit Payload: %s", data)
                     return False
-                _LOGGER.error("AlphaESS Web API Login fehlgeschlagen: Status %s", response.status)
+                _LOGGER.error(
+                    "AlphaESS Web API Login fehlgeschlagen: Status %s", response.status)
                 return False
         except (ClientError, asyncio.TimeoutError) as err:
             _LOGGER.error("Fehler beim Login an AlphaESS Web-API: %s", err)
@@ -137,7 +141,8 @@ class AlphaWebApiClient:
         try:
             data = await response.json(content_type=None)
         except (json.JSONDecodeError, ValueError) as err:
-            _LOGGER.error("AlphaESS API Antwort konnte nicht geparst werden: %s", err)
+            _LOGGER.error(
+                "AlphaESS API Antwort konnte nicht geparst werden: %s", err)
             return None
 
         return data
@@ -166,7 +171,8 @@ class AlphaWebApiClient:
         self.ev_charger_key = old_pile_data.get("chargingpileKey")
         self.ev_charger_sn = old_pile_data.get("chargingpileSn")
 
-        _LOGGER.info("System SN: %s | Wallbox SN: %s", self.system_sn, self.ev_charger_sn)
+        _LOGGER.info("System SN: %s | Wallbox SN: %s",
+                     self.system_sn, self.ev_charger_sn)
         return True
 
     async def get_ev_data(self) -> dict | None:
@@ -182,16 +188,18 @@ class AlphaWebApiClient:
             return None
 
         status_res = await self._request(
-            "GET", 
+            "GET",
             "/api/iterate/ev/v2/getChargPileStatusByPileSn",
-            params={"sysSn": self.system_sn, "chargingpileId": self.ev_charger_id}
+            params={"sysSn": self.system_sn,
+                    "chargingpileId": self.ev_charger_id}
         )
         ev_data = await self.get_ev_data()
         if not ev_data:
             return None
 
         old_pile_data = ev_data.get("oldPileData") or ev_data
-        status_code = status_res.get("data", {}).get("mode", 9) if status_res else 9
+        status_code = status_res.get("data", {}).get(
+            "mode", 9) if status_res else 9
 
         return {
             "status_code": status_code,
@@ -220,7 +228,7 @@ class AlphaWebApiClient:
             return False
 
         old_pile_data = dict(ev_data.get("oldPileData") or ev_data)
-        
+
         # Standardwerte beibehalten / aktualisieren
         old_pile_data.update({
             "chargingmode": old_pile_data.get("chargingmode", 4),
@@ -235,7 +243,7 @@ class AlphaWebApiClient:
             "timeChargeE2": "00:00",
             "maxCurrent": old_pile_data.get("maxCurrent", 16)
         })
-        
+
         # Gezielt veränderte Felder überschreiben
         old_pile_data.update(updates)
 

@@ -53,7 +53,8 @@ async def test_login_returns_false_for_non_successful_status():
     client = AlphaWebApiClient(mock_hass, "test_user", "test_pass")
 
     mock_session = MagicMock()
-    mock_session.post = MagicMock(side_effect=lambda *args, **kwargs: AsyncCallWrapper(MockResponse(status=500, payload={})))
+    mock_session.post = MagicMock(
+        side_effect=lambda *args, **kwargs: AsyncCallWrapper(MockResponse(status=500, payload={})))
     client._get_session = AsyncMock(return_value=mock_session)
 
     result = await client.login()
@@ -70,7 +71,8 @@ async def test_request_clears_token_when_refresh_login_fails():
     client._token = "stale-token"
 
     mock_session = MagicMock()
-    mock_session.request = MagicMock(side_effect=lambda *args, **kwargs: AsyncCallWrapper(MockResponse(status=401, payload={})))
+    mock_session.request = MagicMock(
+        side_effect=lambda *args, **kwargs: AsyncCallWrapper(MockResponse(status=401, payload={})))
     client._get_session = AsyncMock(return_value=mock_session)
     client.login = AsyncMock(return_value=False)
 
