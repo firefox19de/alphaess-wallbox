@@ -13,11 +13,11 @@ async def test_get_wallbox_status_success():
     client.system_sn = "mock_system_sn"
     client.ev_charger_sn = "mock_charger_sn"
     
-    # Mock für den internen HTTP-Request (verhindert echte Netzwerkaufrufe)
+    # Mock für den internen HTTP-Request (entspricht der echten API-Verschachtelung)
     client._request = AsyncMock(return_value={
         "data": {
-            "max_current": 16,
-            "charging_mode": 4,
+            "maxCurrent": 16,
+            "chargeMode": 4,
             "phase": 3
         }
     })
