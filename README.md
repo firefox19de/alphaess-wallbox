@@ -34,8 +34,8 @@ Um nicht in API Rate-Limits der Web-Cloud zu laufen und gleichzeitig maximale St
 
 ## 🚀 Features
 
-* **Direkte Web-API Anbindung:** Keine MQTT-Broker oder Node.js Middleware erforderlich.
-* **Setup via UI:** Bequeme Einrichtung über den Home Assistant Config Flow[cite: 12].
+* **Direkte Web-API Anbindung:**
+* **Setup via UI:** Bequeme Einrichtung über den Home Assistant Config Flow.
 * **Entitäten:**
   * `number.ev_charger_max_current_setting`: Steuerung der Ladeleistung (6 A – 16 A).
   * `select.ev_charger_phases`: Phasenumschaltung (`1-phasig` / `3-phasig`).
@@ -45,11 +45,11 @@ Um nicht in API Rate-Limits der Web-Cloud zu laufen und gleichzeitig maximale St
 
 ## ⚙️ Installation via HACS
 
-1. In **HACS** oben rechts auf die 3 Punkte klicken -> **Benutzerdefinierte Repositories**[cite: 12].
-2. URL hinzufügen: `https://github.com/firefox19de/alphaess-wallbox`[cite: 12]
-3. Kategorie: **Integration**[cite: 12].
-4. Auf **Herunterladen** klicken und Home Assistant neu starten[cite: 12].
-5. Unter **Einstellungen -> Geräte & Dienste -> Integration hinzufügen** nach `AlphaESS Wallbox Control` suchen[cite: 12].
+1. In **HACS** oben rechts auf die 3 Punkte klicken -> **Benutzerdefinierte Repositories**.
+2. URL hinzufügen: `https://github.com/firefox19de/alphaess-wallbox`
+3. Kategorie: **Integration**.
+4. Auf **Herunterladen** klicken und Home Assistant neu starten.
+5. Unter **Einstellungen -> Geräte & Dienste -> Integration hinzufügen** nach `AlphaESS Wallbox Control` suchen.
 
 ---
 
@@ -93,4 +93,4 @@ Die Übersetzung der MQTT-Topics an die OpenAPI- und Web-API-Entitäten erfolgt 
 
 ## ⚠️ Disclaimer
 
-Dieses Projekt ist eine inoffizielle Community-Integration. Es besteht keinerlei Verbindung zur Alpha ESS Co., Ltd. Die Nutzung erfolgt auf eigene Verantwortung[cite: 12].
+Dieses Projekt ist eine inoffizielle Community-Integration. Es besteht keinerlei Verbindung zur Alpha ESS Co., Ltd. Die Nutzung erfolgt auf eigene Verantwortung.
