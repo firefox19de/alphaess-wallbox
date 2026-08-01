@@ -1,0 +1,88 @@
+{
+  "version": 1,
+  "minor_version": 5,
+  "key": "core.device_registry",
+  "data": {
+    "devices": [
+      {
+        "area_id": null,
+        "config_entries": [
+          "a112d11d3b610dbfd55b4e43d163b971"
+        ],
+        "configuration_url": null,
+        "connections": [],
+        "disabled_by": null,
+        "entry_type": "service",
+        "hw_version": null,
+        "id": "634c673d332f915da79ffab8606ef91c",
+        "identifiers": [
+          [
+            "sun",
+            "a112d11d3b610dbfd55b4e43d163b971"
+          ]
+        ],
+        "labels": [],
+        "manufacturer": null,
+        "model": null,
+        "name_by_user": null,
+        "name": "Sun",
+        "serial_number": null,
+        "sw_version": null,
+        "via_device_id": null
+      },
+      {
+        "area_id": null,
+        "config_entries": [
+          "a97963aa05fdd8318c7223cabf850bb7"
+        ],
+        "configuration_url": "https://www.met.no/en",
+        "connections": [],
+        "disabled_by": null,
+        "entry_type": "service",
+        "hw_version": null,
+        "id": "d1deea800f03a12a57e02874f9c3b6d2",
+        "identifiers": [
+          [
+            "met",
+            "a97963aa05fdd8318c7223cabf850bb7"
+          ]
+        ],
+        "labels": [],
+        "manufacturer": "Met.no",
+        "model": "Forecast",
+        "name_by_user": null,
+        "name": "Forecast",
+        "serial_number": null,
+        "sw_version": null,
+        "via_device_id": null
+      },
+      {
+        "area_id": "kuche",
+        "config_entries": [
+          "7ee9e932569d3714b2bdd659099c4a62"
+        ],
+        "configuration_url": null,
+        "connections": [],
+        "disabled_by": null,
+        "entry_type": null,
+        "hw_version": null,
+        "id": "5566e9e62b93632ba61e39af3fefae45",
+        "identifiers": [
+          [
+            "alphaess_wallbox",
+            "ALP2021082020071"
+          ]
+        ],
+        "labels": [],
+        "manufacturer": "AlphaESS",
+        "model": "SMILE-EVCT11",
+        "name_by_user": null,
+        "name": "Alpha ESS Charger : ALP2021082020071",
+        "serial_number": null,
+        "sw_version": null,
+        "via_device_id": null
+      }
+    ],
+    "deleted_devices": []
+  }
+}
