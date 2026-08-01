@@ -27,7 +27,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Richtet die Select-Entitaeten fuer die Wallbox ein."""
+    """Richtet die Select-Entitäten für die Wallbox ein."""
     client = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
         AlphaESSModeSelect(client, entry.entry_id),
@@ -36,14 +36,15 @@ async def async_setup_entry(
 
 
 class AlphaESSModeSelect(SelectEntity):
-    """Select Entity fuer den AlphaESS Lademodus."""
+    """Select Entity für den AlphaESS Lademodus."""
 
     def __init__(self, api_client, entry_id: str):
         self._api = api_client
-        self._attr_name = "AlphaESS Lademodus"
-        self._attr_unique_id = f"{entry_id}_charge_mode"
+        self._attr_name = "EV Charger Charge Mode"
+        self._attr_unique_id = f"{entry_id}_ev_charger_charge_mode"
         self._attr_options = list(MODE_MAP.keys())
         self._attr_current_option = "Custom / Manuell (evcc-Steuerung)"
+        self._attr_icon = "mdi:ev-station"
 
     async def async_update(self) -> None:
         """Holt den aktuellen Zustand aus der Cloud."""
@@ -54,7 +55,7 @@ class AlphaESSModeSelect(SelectEntity):
                 self._attr_current_option = REVERSE_MODE_MAP[mode_code]
 
     async def async_select_option(self, option: str) -> None:
-        """Aendert den Lademodus."""
+        """Ändert den Lademodus."""
         mode_code = MODE_MAP.get(option, 4)
         success = await self._api.set_charge_mode(mode_code)
         if success:
@@ -65,14 +66,15 @@ class AlphaESSModeSelect(SelectEntity):
 
 
 class AlphaESSPhaseSelect(SelectEntity):
-    """Select Entity fuer die Phasenumschaltung (1-phasig / 3-phasig)."""
+    """Select Entity für die Phasenumschaltung (1-phasig / 3-phasig)."""
 
     def __init__(self, api_client, entry_id: str):
         self._api = api_client
-        self._attr_name = "AlphaESS Phasen"
-        self._attr_unique_id = f"{entry_id}_charging_phase"
+        self._attr_name = "EV Charger Phases"
+        self._attr_unique_id = f"{entry_id}_ev_charger_phases"
         self._attr_options = list(PHASE_MAP.keys())
         self._attr_current_option = "3-phasig"
+        self._attr_icon = "mdi:phase-change"
 
     async def async_update(self) -> None:
         """Holt die aktuelle Phasenkonfiguration aus der Cloud."""
@@ -83,7 +85,7 @@ class AlphaESSPhaseSelect(SelectEntity):
                 self._attr_current_option = REVERSE_PHASE_MAP[phase_code]
 
     async def async_select_option(self, option: str) -> None:
-        """Aendert die Phasenanzahl."""
+        """Ändert die Phasenanzahl."""
         phase_code = PHASE_MAP.get(option, 3)
         success = await self._api.set_phases(phase_code)
         if success:

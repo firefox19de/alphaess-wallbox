@@ -13,7 +13,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Richtet die Number-Entitaeten fuer die Wallbox ein."""
+    """Richtet die Number-Entitäten für die Wallbox ein."""
     client = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([AlphaWallboxCurrentNumber(client, entry.entry_id)])
 
@@ -22,17 +22,18 @@ class AlphaWallboxCurrentNumber(NumberEntity):
 
     def __init__(self, api_client, entry_id: str):
         self._api = api_client
-        self._attr_name = "Wallbox Maximalstrom"
-        self._attr_unique_id = f"{entry_id}_wallbox_max_current"
+        self._attr_name = "EV Charger Max Current Setting"
+        self._attr_unique_id = f"{entry_id}_ev_charger_max_current_setting"
         self._attr_native_min_value = 6
         self._attr_native_max_value = 16
         self._attr_native_step = 1
         self._attr_native_unit_of_measurement = "A"
         self._attr_mode = NumberMode.SLIDER
         self._attr_native_value = 16
+        self._attr_icon = "mdi:current-ac"
 
     async def async_update(self) -> None:
-        """Liest die aktuell eingestellte Stromstaerke aus der Cloud."""
+        """Liest die aktuell eingestellte Stromstärke aus der Cloud."""
         status = await self._api.get_wallbox_status()
         if status and "max_current" in status and status["max_current"] > 0:
             self._attr_native_value = status["max_current"]

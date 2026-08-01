@@ -1,3 +1,3 @@
-"""Konstanten fuer die AlphaESS Wallbox Integration."""
+"""Konstanten für die AlphaESS Wallbox Integration."""
 
 DOMAIN = "alphaess_wallbox"

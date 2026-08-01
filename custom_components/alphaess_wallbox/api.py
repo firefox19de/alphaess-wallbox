@@ -9,7 +9,7 @@ from Crypto.Util.Padding import pad
 _LOGGER = logging.getLogger(__name__)
 
 def encrypt_password(password: str, username: str) -> str:
-    """Portierung der CryptoJS AES-CBC Verschluesselung aus Node.js."""
+    """Portierung der CryptoJS AES-CBC Verschlüsselung aus Node.js."""
     key = hashlib.sha256(username.encode("utf-8")).digest()
     iv = hashlib.md5(username.encode("utf-8")).digest()
     
@@ -21,7 +21,7 @@ def encrypt_password(password: str, username: str) -> str:
 
 
 class AlphaWebApiClient:
-    """Client fuer die AlphaESS Cloud Web-API."""
+    """Client für die AlphaESS Cloud Web-API."""
 
     def __init__(self, username: str, password: str, base_url: str = "https://eurcloud.alphaess.com"):
         self.username = username
@@ -41,7 +41,7 @@ class AlphaWebApiClient:
         return self._session
 
     async def close(self) -> None:
-        """Schliesst die aiohttp Session sauber."""
+        """Schließt die aiohttp Session sauber."""
         if self._session and not self._session.closed:
             await self._session.close()
 
@@ -64,7 +64,7 @@ class AlphaWebApiClient:
         return headers
 
     async def login(self) -> bool:
-        """Fuehrt den 3-stufigen Login-Prozess aus."""
+        """Führt den 3-stufigen Login-Prozess aus."""
         session = await self._get_session()
         headers = self._get_headers()
 
@@ -116,7 +116,7 @@ class AlphaWebApiClient:
             return None
 
     async def load_system_and_charger(self) -> bool:
-        """Laedt System-SN und Wallbox-Details."""
+        """Lädt System-SN und Wallbox-Details."""
         if self.system_sn and self.ev_charger_sn:
             return True
 
@@ -175,7 +175,7 @@ class AlphaWebApiClient:
         }
 
     async def set_charging_current(self, ampere: int) -> bool:
-        """Setzt die maximale Stromstaerke (A)."""
+        """Setzt die maximale Stromstärke (A)."""
         return await self._update_ev_settings({"maxCurrent": ampere})
 
     async def set_phases(self, phases: int) -> bool:
@@ -185,15 +185,6 @@ class AlphaWebApiClient:
     async def set_charge_mode(self, mode_code: int) -> bool:
         """Setzt den Lademodus (1-4)."""
         return await self._update_ev_settings({"chargingmode": mode_code})
-
-    async def set_enable_state(self, enable: bool) -> bool:
-        """Startet oder stoppt den Ladevorgang."""
-        if not await self.load_system_and_charger():
-            return False
-        
-        endpoint = "/api/iterate/ev/startCharging" if enable else "/api/iterate/ev/stopCharging"
-        res = await self._request("POST", endpoint, json_payload={"id": self.ev_charger_key})
-        return res is not None and res.get("code") == 200
 
     async def _update_ev_settings(self, updates: dict) -> bool:
         """Baut das alte Payload-Objekt nach und sendet das Update an die Cloud."""

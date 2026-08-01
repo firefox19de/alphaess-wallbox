@@ -4,28 +4,93 @@
 
 Erweiterte Steuerungs-Integration für die **AlphaESS EVCT11 Wallbox** in Home Assistant via AlphaESS Web-API.
 
-## Features
+Diese Integration dient als **Ergänzung** zur offiziellen OpenAPI-Integration (z. B. von CharlesGillanders), um Parameter wie **Maximalstrom, Phasenumschaltung und Lademodus** zu steuern, die über die offizielle OpenAPI von AlphaESS nicht schreibbar sind.
+
+---
+
+## 💡 Das Hybrid-Konzept (OpenAPI + Web-API)
+
+Um nicht in API Rate-Limits der Web-Cloud zu laufen und gleichzeitig maximale Stabilität bei Lade-Start/Stop zu garantieren, nutzt dieses Setup einen **Hybrid-Ansatz**:
+
+1. **Lesen & Lade-Freigabe (OpenAPI):** Statuswerte, Ladeleistung sowie Start/Stop-Signale laufen limitfrei über die Standard-OpenAPI.
+2. **Parameter-Steuerung (Web-API):** Diese Custom Component übernimmt exklusiv das Schreiben von Phasenzahl, Ampere-Limit und Lademodus über die AlphaESS Web-API.
+
+```text
+┌────────────────┐        MQTT         ┌────────────────────────┐
+│      EVCC      │ ──────────────────> │ evcc_bridge Automation │
+└────────────────┘                     └───────────┬────────────┘
+                                                   │
+                         ┌─────────────────────────┴────────────────────────┐
+                         │                                                  │
+                         ▼                                                  ▼
+      ┌─────────────────────────────────────┐            ┌───────────────────────────────────┐
+      │     Charles' Integration (OpenAPI)   │            │   AlphaESS Wallbox Control (Web-API)  │
+      ├─────────────────────────────────────┤            ├───────────────────────────────────┤
+      │ • Start/Stop Charging Buttons       │            │ • EV Charger Max Current Setting  │
+      │ • Can Start/Stop Binary Sensors     │            │ • EV Charger Phases               │
+      │ • EV Charger Status Raw / Power     │            │ • EV Charger Charge Mode          │
+      └─────────────────────────────────────┘            └───────────────────────────────────┘
+```
+
+## 🚀 Features
 
 * **Direkte Web-API Anbindung:** Keine MQTT-Broker oder Node.js Middleware erforderlich.
-* **Steuerung via HACS UI:** Bequeme Einrichtung direkt über den Config Flow.
-* **Integrierter Hardware Guard Delay:** Automatische Sicherheits-Pausen bei der Phasenumschaltung (1P / 3P), um Relais und Schütze zu schonen.
+* **Setup via UI:** Bequeme Einrichtung über den Home Assistant Config Flow[cite: 12].
 * **Entitäten:**
-  * `number.wallbox_maximalstrom`: Steuerung der Ladeleistung (6 A – 32 A).
-  * `select.wallbox_lademodus`: Umschaltung zwischen Eco-Modi und Custom/evcc-Steuerung.
-  * `select.wallbox_phasen`: Sichere Phasenwahl (1 Phase / 3 Phasen).
+  * `number.ev_charger_max_current_setting`: Steuerung der Ladeleistung (6 A – 16 A).
+  * `select.ev_charger_phases`: Phasenumschaltung (`1-phasig` / `3-phasig`).
+  * `select.ev_charger_charge_mode`: Lademodus (PV-Logiken / Custom EVCC-Steuerung).
 
 ---
 
-## Installation via HACS
+## ⚙️ Installation via HACS
 
-1. In **HACS** oben rechts auf die 3 Punkte klicken -> **Benutzerdefinierte Repositories**.
-2. URL hinzufügen: `https://github.com/firefox19de/alphaess-wallbox`
-3. Kategorie: **Integration**.
-4. Auf **Herunterladen** klicken und Home Assistant neu starten.
-5. Unter **Einstellungen -> Geräte & Dienste -> Integration hinzufügen** nach `AlphaESS Wallbox Control` suchen.
+1. In **HACS** oben rechts auf die 3 Punkte klicken -> **Benutzerdefinierte Repositories**[cite: 12].
+2. URL hinzufügen: `https://github.com/firefox19de/alphaess-wallbox`[cite: 12]
+3. Kategorie: **Integration**[cite: 12].
+4. Auf **Herunterladen** klicken und Home Assistant neu starten[cite: 12].
+5. Unter **Einstellungen -> Geräte & Dienste -> Integration hinzufügen** nach `AlphaESS Wallbox Control` suchen[cite: 12].
 
 ---
 
-## Disclaimer
+## 🔌 EVCC Integration (Beispiel)
 
-Dieses Projekt ist eine inoffizielle Community-Integration. Es besteht keinerlei Verbindung zur Alpha ESS Co., Ltd. Die Nutzung erfolgt auf eigene Verantwortung.
+Falls du **EVCC** nutzt, kannst du deine Wallbox via MQTT in EVCC als benutzerdefiniertes Ladepunkt-Device anbinden:
+
+### EVCC `evcc.yaml` (Auszug)
+```yaml
+chargers:
+  - name: alphaess_wallbox
+    type: custom
+    status:
+      source: mqtt
+      topic: ha_bridge/charger/status
+    enabled:
+      source: mqtt
+      topic: ha_bridge/charger/enabled
+    enable:
+      source: mqtt
+      topic: ha_bridge/charger/enable/set
+      payload: ${enable}
+    maxcurrent:
+      source: mqtt
+      topic: ha_bridge/charger/maxcurrent/set
+    phases1p3p:
+      source: mqtt
+      topic: ha_bridge/charger/phases/set
+    currents:
+      - source: mqtt
+        topic: ha_bridge/charger/current_calculated
+      - source: mqtt
+        topic: ha_bridge/charger/current_calculated
+      - source: mqtt
+        topic: ha_bridge/charger/current_calculated
+```
+
+Die Übersetzung der MQTT-Topics an die OpenAPI- und Web-API-Entitäten erfolgt über eine einfache Automation (`evcc_bridge.yaml`) in Home Assistant.
+
+---
+
+## ⚠️ Disclaimer
+
+Dieses Projekt ist eine inoffizielle Community-Integration. Es besteht keinerlei Verbindung zur Alpha ESS Co., Ltd. Die Nutzung erfolgt auf eigene Verantwortung[cite: 12].
