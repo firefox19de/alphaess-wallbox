@@ -8,7 +8,7 @@ from custom_components.alphaess_wallbox.select import AlphaESSModeSelect, AlphaE
 
 @pytest.fixture
 def mock_api():
-    """Stellt einen gemockten API-Client für die Tests bereit."""
+    """Stellt einen gemockten API-Client fÃ¼r die Tests bereit."""
     api = MagicMock()
     api.get_wallbox_status = AsyncMock()
     api.set_charging_current = AsyncMock(return_value=True)
@@ -23,7 +23,7 @@ def mock_device_info():
 
 @pytest.mark.asyncio
 async def test_fetch_status_button(mock_api, mock_device_info):
-    """Testet, ob der Button-Druck die Status-Abfrage der API auslöst."""
+    """Testet, ob der Button-Druck die Status-Abfrage der API auslÃ¶st."""
     button = AlphaESSFetchStatusButton(mock_api, mock_device_info, "test_entry")
     
     await button.async_press()
@@ -32,7 +32,7 @@ async def test_fetch_status_button(mock_api, mock_device_info):
 
 @pytest.mark.asyncio
 async def test_number_entity(mock_api, mock_device_info):
-    """Testet das Lesen und Setzen der Stromstärke."""
+    """Testet das Lesen und Setzen der StromstÃ¤rke."""
     # 1. Test: Lesen der Werte
     mock_api.get_wallbox_status.return_value = {"max_current": 12}
     number = AlphaWallboxCurrentNumber(mock_api, mock_device_info, "test_entry")

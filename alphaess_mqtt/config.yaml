@@ -1,0 +1,33 @@
+name: "AlphaESS MQTT Bridge"
+slug: "alphaess_mqtt"
+description: "Web-API Bridge für AlphaESS Wallbox via MQTT für evcc"
+version: "1.1.0"
+arch:
+  - amd64
+  - aarch64
+  - armv7
+startup: application
+boot: auto
+options:
+  ALPHAESS_USERNAME: ""
+  ALPHAESS_PASSWORD: ""
+  ALPHAESS_BASE_URL: "https://eurcloud.alphaess.com"
+  ALPHAESS_AUTH_SCHEME: "raw"
+  MQTT_BROKER: "mqtt://homeassistant:1883"
+  MQTT_USER: ""
+  MQTT_PASSWORD: ""
+  MQTT_BASE_TOPIC: "evcc/chargers/alphaess"
+  MQTT_HA_DISCOVERY: true
+  MQTT_HA_PREFIX: "homeassistant"
+schema:
+  ALPHAESS_USERNAME: str
+  ALPHAESS_PASSWORD: password
+  ALPHAESS_BASE_URL: "match(^https?://.+$)"
+  ALPHAESS_AUTH_SCHEME: str
+  MQTT_BROKER: "match(^mqtts?://.+$)"
+  MQTT_USER: str?
+  MQTT_PASSWORD: password?
+  MQTT_BASE_TOPIC: str?
+  MQTT_HA_DISCOVERY: bool?
+  MQTT_HA_PREFIX: str?
+image: "ghcr.io/firefox19de/alphaess-wallbox"
