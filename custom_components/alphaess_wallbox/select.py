@@ -27,7 +27,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Richtet die Select-Entitäten für die Wallbox ein."""
+    """Richtet die Select-EntitÃ¤ten fÃ¼r die Wallbox ein."""
     client = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([
         AlphaESSModeSelect(client, entry.entry_id),
@@ -36,7 +36,7 @@ async def async_setup_entry(
 
 
 class AlphaESSModeSelect(SelectEntity):
-    """Select Entity für den AlphaESS Lademodus."""
+    """Select Entity fÃ¼r den AlphaESS Lademodus."""
 
     def __init__(self, api_client, entry_id: str):
         self._api = api_client
@@ -55,7 +55,7 @@ class AlphaESSModeSelect(SelectEntity):
                 self._attr_current_option = REVERSE_MODE_MAP[mode_code]
 
     async def async_select_option(self, option: str) -> None:
-        """Ändert den Lademodus."""
+        """Ã„ndert den Lademodus."""
         mode_code = MODE_MAP.get(option, 4)
         success = await self._api.set_charge_mode(mode_code)
         if success:
@@ -66,7 +66,7 @@ class AlphaESSModeSelect(SelectEntity):
 
 
 class AlphaESSPhaseSelect(SelectEntity):
-    """Select Entity für die Phasenumschaltung (1-phasig / 3-phasig)."""
+    """Select Entity fÃ¼r die Phasenumschaltung (1-phasig / 3-phasig)."""
 
     def __init__(self, api_client, entry_id: str):
         self._api = api_client
@@ -85,7 +85,7 @@ class AlphaESSPhaseSelect(SelectEntity):
                 self._attr_current_option = REVERSE_PHASE_MAP[phase_code]
 
     async def async_select_option(self, option: str) -> None:
-        """Ändert die Phasenanzahl."""
+        """Ã„ndert die Phasenanzahl."""
         phase_code = PHASE_MAP.get(option, 3)
         success = await self._api.set_phases(phase_code)
         if success:
