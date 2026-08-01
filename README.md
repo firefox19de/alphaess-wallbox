@@ -24,7 +24,7 @@ Um nicht in API Rate-Limits der Web-Cloud zu laufen und gleichzeitig maximale St
                          │                                                  │
                          ▼                                                  ▼
       ┌─────────────────────────────────────┐            ┌───────────────────────────────────┐
-      │     Charles' Integration (OpenAPI)   │            │   AlphaESS Wallbox Control (Web-API)  │
+      │     Charles' Integration (OpenAPI)  │            │ AlphaESS Wallbox Control (Web-API)│
       ├─────────────────────────────────────┤            ├───────────────────────────────────┤
       │ • Start/Stop Charging Buttons       │            │ • EV Charger Max Current Setting  │
       │ • Can Start/Stop Binary Sensors     │            │ • EV Charger Phases               │
