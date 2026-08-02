@@ -13,6 +13,7 @@ ENV/
 
 # Home Assistant / HACS local testing
 .ha_test/
+config/
 *.log
 
 # IDEs & OS
