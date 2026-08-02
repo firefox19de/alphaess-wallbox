@@ -1,14 +1,15 @@
 {
-  "name": "Home Assistant Dev",
-  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "name": "Alpha ESS Wallbox Dev",
+  "extends": "../../ha-dev-workspace/.devcontainer/devcontainer.json",
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
-        "keesschollaart.vscode-home-assistant"
+        "keesschollaart.vscode-home-assistant",
+        "eamodio.gitlens",
+        "ms-azuretools.vscode-docker"
       ]
     }
   },
-  "postCreateCommand": "pip install homeassistant pytest-homeassistant-custom-component",
-  "forwardPorts": [8123]
+  "postCreateCommand": "pip install -r requirements_test.txt"
 }
