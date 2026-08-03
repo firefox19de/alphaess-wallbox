@@ -26,7 +26,13 @@ class AlphaESSDataUpdateCoordinator(DataUpdateCoordinator[dict]):
         self.client = client
 
     async def _async_update_data(self) -> dict:
+        """Fetch data from API with automatic re-authentication on failure."""
         data = await self.client.get_wallbox_status()
         if data is None:
-            raise UpdateFailed("AlphaESS Web API konnte keine Daten zurückliefern")
+            _LOGGER.warning("AlphaESS Session abgelaufen oder API-Fehler. Führe Re-Login aus...")
+            if await self.client.login():
+                _LOGGER.info("Re-Login erfolgreich. Erneute Datenabfrage...")
+                data = await self.client.get_wallbox_status()
+        if data is None:
+            raise UpdateFailed("AlphaESS Web API konnte auch nach Re-Login keine Daten zurückliefern")
         return data
