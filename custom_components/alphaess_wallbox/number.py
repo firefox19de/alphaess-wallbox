@@ -23,7 +23,7 @@ async def async_setup_entry(
     device_info = DeviceInfo(
         identifiers={("alphaess", client.ev_charger_sn)},
         name=f"Alpha ESS Charger : {client.ev_charger_sn}",
-        manufacturer="AlphaESS",
+        manufacturer="Alpha ESS",
         model="SMILE-EVCT11",
     )
 
