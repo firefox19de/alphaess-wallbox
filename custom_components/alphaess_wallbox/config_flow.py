@@ -15,7 +15,7 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            base_url = user_input.get(CONF_URL, "https://eurcloud.alphaess.com")
+            base_url = user_input.get(CONF_URL, "https://eurcloud.alphaess.com").rstrip("/")
             client = AlphaWebApiClient(
                 self.hass,
                 username=user_input[CONF_USERNAME],
@@ -37,11 +37,11 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             errors["base"] = "invalid_auth"
 
-        # Formular-Schema definieren
+        # Formular-Schema definieren (str statt vol.Url() behebt den 500-Serverfehler)
         data_schema = vol.Schema({
             vol.Required(CONF_USERNAME): str,
             vol.Required(CONF_PASSWORD): str,
-            vol.Optional(CONF_URL, default="https://eurcloud.alphaess.com"): vol.Url(),
+            vol.Optional(CONF_URL, default="https://eurcloud.alphaess.com"): str,
         })
 
         return self.async_show_form(
