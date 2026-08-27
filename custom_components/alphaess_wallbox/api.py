@@ -61,7 +61,8 @@ class AlphaWebApiClient:
             async with session.post(login_url, json=payload, headers=headers, timeout=10) as response:
                 if response.status in (200, 201):
                     data = await response.json(content_type=None)
-                    token = data.get("access_token") or data.get("token")
+                    # Keycloak liefert accessToken (CamelCase)
+                    token = data.get("accessToken") or data.get("access_token") or data.get("token")
                     if token:
                         self._token = token
                         _LOGGER.info("AlphaESS Platform Login erfolgreich!")
