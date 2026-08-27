@@ -5,7 +5,7 @@ from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
 
 from .api import AlphaWebApiClient
 from .coordinator import AlphaESSDataUpdateCoordinator
-from .const import DOMAIN
+from .const import DOMAIN, DEFAULT_BASE_URL
 
 PLATFORMS = ["select", "number", "button"]
 _LOGGER = logging.getLogger(__name__)
@@ -16,11 +16,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass,
         username=entry.data[CONF_USERNAME],
         password=entry.data[CONF_PASSWORD],
-        base_url=entry.data.get(CONF_URL, "https://eurcloud.alphaess.com"),
+        base_url=entry.data.get(CONF_URL, DEFAULT_BASE_URL),
     )
 
     if not await client.load_system_and_charger():
-        _LOGGER.error("AlphaESS Web API konnte Systemdaten nicht laden")
+        _LOGGER.error("AlphaESS Platform API konnte Systemdaten nicht laden")
         await client.close()
         return False
 

@@ -34,7 +34,7 @@ async def async_setup_entry(
 
 
 class AlphaWallboxCurrentNumber(CoordinatorEntity, NumberEntity):
-    """Control the maximum charging current."""
+    """Steuert den Maximalstrom (A)."""
 
     _attr_has_entity_name = True
     _attr_translation_key = "maxcurrent"
@@ -58,7 +58,7 @@ class AlphaWallboxCurrentNumber(CoordinatorEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         target_current = int(value)
-        _LOGGER.debug("Setting Wallbox current to %sA", target_current)
+        _LOGGER.debug("Setze Wallbox-Strom auf %sA via PATCH", target_current)
 
         success = await self.coordinator.client.set_charging_current(target_current)
         if success and self.coordinator.data is not None:

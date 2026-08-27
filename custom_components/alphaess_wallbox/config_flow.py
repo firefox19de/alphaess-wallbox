@@ -3,8 +3,8 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
 
 from .api import AlphaWebApiClient
+from .const import DOMAIN, DEFAULT_BASE_URL
 
-DOMAIN = "alphaess_wallbox"
 
 class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handhabt den Einrichtungs-Dialog in Home Assistant."""
@@ -15,7 +15,7 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            base_url = user_input.get(CONF_URL, "https://eurcloud.alphaess.com").rstrip("/")
+            base_url = user_input.get(CONF_URL, DEFAULT_BASE_URL).rstrip("/")
             client = AlphaWebApiClient(
                 self.hass,
                 username=user_input[CONF_USERNAME],
@@ -37,11 +37,10 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             errors["base"] = "invalid_auth"
 
-        # Formular-Schema definieren (str statt vol.Url() behebt den 500-Serverfehler)
         data_schema = vol.Schema({
             vol.Required(CONF_USERNAME): str,
             vol.Required(CONF_PASSWORD): str,
-            vol.Optional(CONF_URL, default="https://eurcloud.alphaess.com"): str,
+            vol.Optional(CONF_URL, default=DEFAULT_BASE_URL): str,
         })
 
         return self.async_show_form(

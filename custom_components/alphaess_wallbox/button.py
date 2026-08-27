@@ -1,4 +1,3 @@
-"""Button platform for AlphaESS Wallbox integration."""
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -29,7 +28,7 @@ async def async_setup_entry(
 
 
 class AlphaESSFetchStatusButton(CoordinatorEntity, ButtonEntity):
-    """Representation of a button to fetch latest status from Web-API."""
+    """Button zum manuellen Aktualisieren des Live-Status."""
 
     _attr_has_entity_name = True
     _attr_translation_key = "fetch_status"
@@ -41,5 +40,5 @@ class AlphaESSFetchStatusButton(CoordinatorEntity, ButtonEntity):
         self._attr_unique_id = f"{entry_id}_fetch_status"
 
     async def async_press(self) -> None:
-        """Handle the button press."""
+        """Handle button press."""
         await self.coordinator.async_refresh()

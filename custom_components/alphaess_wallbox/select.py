@@ -51,7 +51,7 @@ async def async_setup_entry(
 
 
 class AlphaESSModeSelect(CoordinatorEntity, SelectEntity):
-    """Select entity for charge mode."""
+    """Auswahl des Lademodus."""
 
     _attr_has_entity_name = True
     _attr_translation_key = "mode"
@@ -69,8 +69,7 @@ class AlphaESSModeSelect(CoordinatorEntity, SelectEntity):
         if self.coordinator.data is None:
             return None
         return REVERSE_MODE_MAP.get(
-            self.coordinator.data.get(
-                "charging_mode"), self._attr_current_option
+            self.coordinator.data.get("charging_mode"), self._attr_current_option
         )
 
     async def async_select_option(self, option: str) -> None:
@@ -82,11 +81,11 @@ class AlphaESSModeSelect(CoordinatorEntity, SelectEntity):
             self.async_write_ha_state()
             await self.coordinator.async_request_refresh()
         elif not success:
-            _LOGGER.error("Failed to set charge mode to %s", option)
+            _LOGGER.error("Fehler beim Setzen des Lademodus %s", option)
 
 
 class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
-    """Select entity for phase count."""
+    """Auswahl der Phasenanzahl."""
 
     _attr_has_entity_name = True
     _attr_translation_key = "phases"
@@ -116,4 +115,4 @@ class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
             self.async_write_ha_state()
             await self.coordinator.async_request_refresh()
         elif not success:
-            _LOGGER.error("Failed to set phase count to %s", option)
+            _LOGGER.error("Fehler beim Setzen der Phasenanzahl %s", option)
