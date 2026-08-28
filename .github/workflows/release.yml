@@ -25,6 +25,12 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/}
           VERSION=${VERSION#v}
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          # Pre-Release erkennen wenn Tag alpha oder beta enthält (z.B. v1.0.0-beta.1)
+          if [[ "${VERSION}" == *"alpha"* ]] || [[ "${VERSION}" == *"beta"* ]]; then
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Update manifest version
         run: |
@@ -57,3 +63,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           body: ${{ env.CHANGELOG }}
+          prerelease: ${{ steps.prep.outputs.prerelease == 'true' }}
