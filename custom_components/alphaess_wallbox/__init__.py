@@ -2,6 +2,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from .api import AlphaWebApiClient
 from .coordinator import AlphaESSDataUpdateCoordinator
@@ -19,10 +20,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         base_url=entry.data.get(CONF_URL, DEFAULT_BASE_URL),
     )
 
+    if not await client.login():
+        raise ConfigEntryAuthFailed("AlphaESS Login fehlgeschlagen – Zugangsdaten prüfen")
+
     if not await client.load_system_and_charger():
-        _LOGGER.error("AlphaESS Platform API konnte Systemdaten nicht laden")
-        await client.close()
-        return False
+        raise ConfigEntryNotReady("AlphaESS Platform API konnte Systemdaten nicht laden")
 
     coordinator = AlphaESSDataUpdateCoordinator(hass, client)
     await coordinator.async_config_entry_first_refresh()

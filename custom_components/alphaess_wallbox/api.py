@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import hashlib
 import json
 import logging
 
@@ -7,6 +9,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _hash_password(password: str) -> str:
+    """Passwort mit SHA-256 hashen und Base64-enkodieren (neue API-Anforderung)."""
+    digest = hashlib.sha256(password.encode("utf-8")).digest()
+    return base64.b64encode(digest).decode("utf-8")
 
 
 class AlphaWebApiClient:
@@ -45,7 +53,7 @@ class AlphaWebApiClient:
         return headers
 
     async def login(self) -> bool:
-        """Neuer Keycloak OAuth-Login über Platform Session Endpoint."""
+        """Login über Platform Session Endpoint – Passwort wird SHA-256/Base64 gehasht."""
         self._token = None
         session = await self._get_session()
         headers = self._get_headers()
@@ -54,15 +62,15 @@ class AlphaWebApiClient:
         payload = {
             "type": "password",
             "email": self.username,
-            "password": self.password,
+            "password": _hash_password(self.password),
         }
 
         try:
             async with session.post(login_url, json=payload, headers=headers, timeout=10) as response:
                 if response.status in (200, 201):
                     data = await response.json(content_type=None)
-                    # Keycloak liefert accessToken (CamelCase)
-                    token = data.get("accessToken") or data.get("access_token") or data.get("token")
+                    # API liefert "token" (access token) und "refreshToken"
+                    token = data.get("token") or data.get("accessToken") or data.get("access_token")
                     if token:
                         self._token = token
                         _LOGGER.info("AlphaESS Platform Login erfolgreich!")
@@ -75,7 +83,7 @@ class AlphaWebApiClient:
             _LOGGER.error("Fehler beim API-Login an AlphaESS Platform: %s", err)
             return False
 
-    async def _request(self, method: str, endpoint: str, json_payload: dict | None = None, params: dict | None = None) -> dict | None:
+    async def _request(self, method: str, endpoint: str, json_payload: dict | None = None, params: dict | None = None) -> dict | list | None:
         if not self._token:
             if not await self.login():
                 return None
@@ -100,8 +108,8 @@ class AlphaWebApiClient:
             _LOGGER.error("Fehler bei API-Request an AlphaESS: %s", err)
             return None
 
-    async def _parse_response(self, response) -> dict | None:
-        if response.status not in (200, 204):
+    async def _parse_response(self, response) -> dict | list | None:
+        if response.status not in (200, 201, 204):
             _LOGGER.warning("AlphaESS API Fehler-Status %s: %s", response.status, await response.text())
             return None
         if response.status == 204:
@@ -113,39 +121,73 @@ class AlphaWebApiClient:
             return None
 
     async def load_system_and_charger(self) -> bool:
-        """Lädt Site ID, System-SN und Wallbox-Seriennummer aus den v1-Endpoints."""
+        """Lädt Site ID, System-SN und Wallbox-Seriennummer aus den v1-Endpoints.
+
+        Neue API: Die /sites-Antwort enthält ein 'devices'-Array mit allen Geräten direkt.
+        Fallback auf den alten /devices-Endpunkt falls nötig.
+        """
         if self.system_sn and self.ev_charger_sn:
             return True
 
         sites_res = await self._request("GET", "/api/internal/v1/sites")
-        if not sites_res or not isinstance(sites_res, list) or len(sites_res) == 0:
-            _LOGGER.error("Keine AlphaESS Sites gefunden")
+
+        # Antwort kann direkt eine Liste oder in einem Wrapper-Objekt sein
+        if isinstance(sites_res, dict):
+            sites_list = sites_res.get("data") or sites_res.get("records") or sites_res.get("sites") or []
+        elif isinstance(sites_res, list):
+            sites_list = sites_res
+        else:
+            sites_list = []
+
+        if not sites_list:
+            _LOGGER.error("Keine AlphaESS Sites gefunden. Antwort: %s", sites_res)
             return False
 
-        first_site = sites_res[0]
-        self.site_id = first_site.get("sysId") or first_site.get("id") or first_site.get("siteId")
+        first_site = sites_list[0]
+        # Neue API: Site-ID ist das 'id'-Feld (alphanumerischer Hash, z.B. qGuKtccdRL6URCui2w)
+        self.site_id = (
+            first_site.get("id")
+            or first_site.get("sysId")
+            or first_site.get("siteId")
+        )
 
-        devices_endpoint = f"/api/internal/v1/sites/{self.site_id}/devices" if self.site_id else None
-        if not devices_endpoint:
-            return False
+        # Neue API: Geräte-SNs direkt aus dem 'devices'-Array in der Sites-Antwort
+        devices_in_site = first_site.get("devices") or []
+        for dev in devices_in_site:
+            dev_type = (dev.get("type") or "").lower()
+            if dev_type == "ess" and not self.system_sn:
+                self.system_sn = dev.get("sysSn")
+            elif dev_type == "evcharger" and not self.ev_charger_sn:
+                self.ev_charger_sn = dev.get("sysSn")
 
-        devices_res = await self._request("GET", devices_endpoint)
-        if devices_res and isinstance(devices_res, list):
-            for dev in devices_res:
-                dev_type = dev.get("type", "").lower()
-                if "ess" in dev_type:
-                    self.system_sn = dev.get("sysSn")
-                elif "evcharger" in dev_type or "charger" in dev_type:
-                    self.ev_charger_sn = dev.get("sysSn")
+        # Fallback: alter /devices-Endpunkt
+        if (not self.system_sn or not self.ev_charger_sn) and self.site_id:
+            _LOGGER.debug("Geräte nicht in Sites-Antwort, versuche /devices-Endpunkt...")
+            devices_res = await self._request("GET", f"/api/internal/v1/sites/{self.site_id}/devices")
+            if devices_res and isinstance(devices_res, list):
+                for dev in devices_res:
+                    dev_type = (dev.get("type") or "").lower()
+                    if "ess" in dev_type and not self.system_sn:
+                        self.system_sn = dev.get("sysSn")
+                    elif ("evcharger" in dev_type or "charger" in dev_type) and not self.ev_charger_sn:
+                        self.ev_charger_sn = dev.get("sysSn")
 
-        # Fallback falls Wallbox SN noch nicht gesetzt ist
+        # Fallback: ESS-Endpunkt mit evCharger-Komponente
         if not self.ev_charger_sn and self.system_sn:
-            ess_res = await self._request("GET", f"/api/internal/v1/ess/{self.system_sn}", params={"components": "evCharger"})
+            _LOGGER.debug("Wallbox-SN nicht gefunden, versuche ESS evCharger-Komponente...")
+            ess_res = await self._request(
+                "GET",
+                f"/api/internal/v1/ess/{self.system_sn}",
+                params={"components": "evCharger"},
+            )
             if ess_res and isinstance(ess_res, dict):
                 ev_info = ess_res.get("evCharger") or {}
                 self.ev_charger_sn = ev_info.get("sysSn") or ev_info.get("sn")
 
-        _LOGGER.info("System SN: %s | Wallbox SN: %s", self.system_sn, self.ev_charger_sn)
+        _LOGGER.info(
+            "Site-ID: %s | System-SN: %s | Wallbox-SN: %s",
+            self.site_id, self.system_sn, self.ev_charger_sn,
+        )
         return bool(self.system_sn and self.ev_charger_sn)
 
     async def get_wallbox_status(self) -> dict | None:
@@ -154,11 +196,11 @@ class AlphaWebApiClient:
             return None
 
         real_status = await self._request("GET", f"/api/internal/v1/ev-charger/{self.ev_charger_sn}/real-status")
-        ess_status = await self._request("GET", f"/api/internal/v1/ess/{self.system_sn}")
+        ess_status = await self._request("GET", f"/api/internal/v1/ess/{self.system_sn}", params={"components": "evCharger"})
 
-        ev_info = (ess_status.get("evCharger") if ess_status else {}) or {}
+        ev_info = (ess_status.get("evCharger") if isinstance(ess_status, dict) else {}) or {}
 
-        status_code = real_status.get("mode", 9) if real_status else 9
+        status_code = real_status.get("mode", 9) if isinstance(real_status, dict) else 9
         max_current = ev_info.get("g1T_chargeCurrent") or ev_info.get("maxCurrent", 16)
         phase = ev_info.get("g1T_obcPhase") or ev_info.get("chargingpilePhase", 3)
         charging_mode = ev_info.get("g1T_chargeMode") or ev_info.get("chargingmode", 4)
@@ -168,7 +210,7 @@ class AlphaWebApiClient:
             "max_current": int(float(max_current)),
             "phase": int(phase),
             "charging_mode": int(charging_mode),
-            "charger_sn": self.ev_charger_sn
+            "charger_sn": self.ev_charger_sn,
         }
 
     async def set_charging_current(self, ampere: int) -> bool:

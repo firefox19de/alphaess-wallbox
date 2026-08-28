@@ -2,11 +2,10 @@ import logging
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import DOMAIN, build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,12 +33,7 @@ async def async_setup_entry(
     coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     client = coordinator.client
 
-    device_info = DeviceInfo(
-        identifiers={("alphaess", client.ev_charger_sn)},
-        name=f"Alpha ESS Charger : {client.ev_charger_sn}",
-        manufacturer="Alpha ESS",
-        model="SMILE-EVCT11",
-    )
+    device_info = build_device_info(client.ev_charger_sn)
 
     async_add_entities(
         [

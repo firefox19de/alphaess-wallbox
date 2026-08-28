@@ -26,6 +26,10 @@ class AlphaWallboxConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await client.close()
 
             if success:
+                # Unique-ID verhindet doppelte Einträge für denselben Account
+                await self.async_set_unique_id(user_input[CONF_USERNAME].lower())
+                self._abort_if_unique_id_configured()
+
                 return self.async_create_entry(
                     title=f"AlphaESS Web ({user_input[CONF_USERNAME]})",
                     data={

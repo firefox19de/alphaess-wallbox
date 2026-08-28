@@ -26,13 +26,12 @@ class AlphaESSDataUpdateCoordinator(DataUpdateCoordinator[dict]):
         self.client = client
 
     async def _async_update_data(self) -> dict:
-        """Daten von der neuer Platform API abrufen."""
+        """Daten von der Platform API abrufen.
+
+        Der Re-Login bei abgelaufenem Token wird automatisch von AlphaWebApiClient._request()
+        übernommen. Hier wird nur noch auf einen finalen Fehler geprüft.
+        """
         data = await self.client.get_wallbox_status()
-        if data is None:
-            _LOGGER.warning("AlphaESS Platform Session abgelaufen oder API-Fehler. Führe Re-Login aus...")
-            if await self.client.login():
-                _LOGGER.info("Re-Login erfolgreich. Erneute Datenabfrage...")
-                data = await self.client.get_wallbox_status()
         if data is None:
             raise UpdateFailed("AlphaESS Platform API konnte keine Daten zurückliefern")
         return data
