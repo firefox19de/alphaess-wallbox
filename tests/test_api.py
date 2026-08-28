@@ -104,6 +104,37 @@ async def test_login_sends_hashed_password():
 
 
 @pytest.mark.asyncio
+async def test_login_409_deletes_session_and_retries():
+    """Bei HTTP 409 muss die alte Session per DELETE gelöscht und danach neu eingeloggt werden."""
+    mock_hass = MagicMock()
+    client = AlphaWebApiClient(mock_hass, "user@test.com", "pass")
+
+    call_count = {"post": 0, "delete": 0}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        call_count["post"] += 1
+        if call_count["post"] == 1:
+            return AsyncCallWrapper(MockResponse(status=409, payload={}))
+        return AsyncCallWrapper(MockResponse(status=200, payload={"token": "new-token"}))
+
+    def fake_delete(url, headers=None, timeout=None):
+        call_count["delete"] += 1
+        return AsyncCallWrapper(MockResponse(status=204))
+
+    mock_session = MagicMock()
+    mock_session.post = fake_post
+    mock_session.delete = fake_delete
+    client._get_session = AsyncMock(return_value=mock_session)
+
+    result = await client.login()
+
+    assert result is True
+    assert client._token == "new-token"
+    assert call_count["post"] == 2, "POST muss zweimal aufgerufen werden"
+    assert call_count["delete"] == 1, "DELETE muss einmal aufgerufen werden"
+
+
+@pytest.mark.asyncio
 async def test_login_returns_false_for_non_successful_status():
     """Login sollte bei fehlerhaften HTTP-Antworten sauber fehlschlagen."""
     mock_hass = MagicMock()

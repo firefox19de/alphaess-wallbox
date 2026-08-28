@@ -27,6 +27,7 @@ class AlphaWebApiClient:
         self.base_url = base_url.rstrip("/")
         self._session = None
         self._token: str | None = None
+        self._refresh_token: str | None = None
 
         self.system_sn: str | None = None
         self.site_id: str | None = None
@@ -53,11 +54,14 @@ class AlphaWebApiClient:
         return headers
 
     async def login(self) -> bool:
-        """Login über Platform Session Endpoint – Passwort wird SHA-256/Base64 gehasht."""
-        self._token = None
-        session = await self._get_session()
-        headers = self._get_headers()
+        """Login über Platform Session Endpoint – Passwort wird SHA-256/Base64 gehasht.
 
+        Bei HTTP 409 (Session existiert noch) wird die alte Session per DELETE beendet
+        und danach ein neuer Login-Versuch gestartet.
+        """
+        self._token = None
+        self._refresh_token = None
+        session = await self._get_session()
         login_url = f"{self.base_url}/api/users-center/sessions"
         payload = {
             "type": "password",
@@ -66,22 +70,40 @@ class AlphaWebApiClient:
         }
 
         try:
-            async with session.post(login_url, json=payload, headers=headers, timeout=10) as response:
+            async with session.post(login_url, json=payload, headers=self._get_headers(), timeout=10) as response:
                 if response.status in (200, 201):
-                    data = await response.json(content_type=None)
-                    # API liefert "token" (access token) und "refreshToken"
-                    token = data.get("token") or data.get("accessToken") or data.get("access_token")
-                    if token:
-                        self._token = token
-                        _LOGGER.info("AlphaESS Platform Login erfolgreich!")
-                        return True
-                    _LOGGER.error("Kein Access-Token in Antwort empfangen: %s", data)
-                    return False
+                    return self._store_tokens(await response.json(content_type=None))
+
+                if response.status == 409:
+                    # Session existiert noch auf dem Server → erst löschen, dann neu anmelden
+                    _LOGGER.debug("AlphaESS: Session existiert bereits (409), lösche alte Session...")
+                    async with session.delete(login_url, headers=self._get_headers(), timeout=10) as del_resp:
+                        if del_resp.status not in (200, 204):
+                            _LOGGER.warning("Session-DELETE zurückgegeben: %s", del_resp.status)
+                    # Zweiter Versuch nach DELETE
+                    async with session.post(login_url, json=payload, headers=self._get_headers(), timeout=10) as retry:
+                        if retry.status in (200, 201):
+                            return self._store_tokens(await retry.json(content_type=None))
+                        _LOGGER.error("AlphaESS Login nach Session-Reset fehlgeschlagen: %s", retry.status)
+                        return False
+
                 _LOGGER.error("AlphaESS Login fehlgeschlagen mit Status: %s", response.status)
                 return False
         except (ClientError, asyncio.TimeoutError) as err:
             _LOGGER.error("Fehler beim API-Login an AlphaESS Platform: %s", err)
             return False
+
+    def _store_tokens(self, data: dict) -> bool:
+        """Speichert access- und refresh-Token aus der Login-Antwort."""
+        token = data.get("token") or data.get("accessToken") or data.get("access_token")
+        refresh = data.get("refreshToken") or data.get("refresh_token")
+        if token:
+            self._token = token
+            self._refresh_token = refresh
+            _LOGGER.info("AlphaESS Platform Login erfolgreich!")
+            return True
+        _LOGGER.error("Kein Access-Token in Login-Antwort: %s", data)
+        return False
 
     async def _request(self, method: str, endpoint: str, json_payload: dict | None = None, params: dict | None = None) -> dict | list | None:
         if not self._token:
