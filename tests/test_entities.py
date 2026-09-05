@@ -1,4 +1,4 @@
-﻿"""Tests fuer die Home Assistant Entities (Button, Number, Select)."""
+"""Tests fuer die Home Assistant Entities (Button, Number, Select)."""
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 

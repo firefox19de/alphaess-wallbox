@@ -1,4 +1,4 @@
-﻿{
+{
   "domain": "alphaess_wallbox",
   "name": "AlphaESS Wallbox Control",
   "codeowners": ["@firefox19de"],

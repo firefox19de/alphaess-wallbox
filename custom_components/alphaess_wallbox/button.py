@@ -1,4 +1,4 @@
-﻿"""Button-Platform fuer die AlphaESS Wallbox Integration."""
+"""Button-Platform fuer die AlphaESS Wallbox Integration."""
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant

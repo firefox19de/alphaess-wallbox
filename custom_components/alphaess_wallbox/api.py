@@ -1,4 +1,4 @@
-﻿"""API Client for AlphaESS Wallbox - portiert von AlphaEVControlv2.js."""
+"""API Client for AlphaESS Wallbox - portiert von AlphaEVControlv2.js."""
 import logging
 import aiohttp
 

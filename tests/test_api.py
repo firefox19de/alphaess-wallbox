@@ -1,4 +1,4 @@
-﻿"""Tests fuer den AlphaESS API-Client."""
+"""Tests fuer den AlphaESS API-Client."""
 import pytest
 from unittest.mock import MagicMock
 

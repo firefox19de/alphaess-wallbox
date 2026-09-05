@@ -1,4 +1,4 @@
-﻿"""Select-Entities fuer Lademodus und Phasensteuerung der AlphaESS Wallbox."""
+"""Select-Entities fuer Lademodus und Phasensteuerung der AlphaESS Wallbox."""
 import logging
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
