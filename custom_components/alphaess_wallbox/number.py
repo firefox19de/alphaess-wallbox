@@ -28,9 +28,9 @@ class AlphaESSChargeCurrentNumber(CoordinatorEntity, NumberEntity):
 
     _attr_has_entity_name = True
     _attr_name = "Ladestrom"
-    _attr_native_min_value = 6
-    _attr_native_max_value = 32
-    _attr_native_step = 1
+    _attr_native_min_value = 6.0
+    _attr_native_max_value = 16.0
+    _attr_native_step = 0.1
     _attr_native_unit_of_measurement = "A"
     _attr_icon = "mdi:current-ac"
 
@@ -51,15 +51,17 @@ class AlphaESSChargeCurrentNumber(CoordinatorEntity, NumberEntity):
 
     @property
     def native_value(self) -> float | None:
-        """Return the current charge current value from coordinator data if available."""
-        return float(self.coordinator.data.get("current", 6)) if self.coordinator.data else 6.0
+        """Return the current charge current value."""
+        if self.coordinator.data and "current" in self.coordinator.data:
+            return float(self.coordinator.data["current"])
+        return 6.0
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set new charge current."""
-        target_current = int(value)
-        _LOGGER.debug("Setting AlphaESS Wallbox charge current to %d A", target_current)
+        """Set new charge current with 0.1A precision."""
+        target_current = round(value, 1)
+        _LOGGER.debug("Setting AlphaESS Wallbox charge current to %.1f A", target_current)
         success = await self.api.async_set_ev_charge_current(target_current)
         if success:
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Failed to set charge current to %d A", target_current)
+            _LOGGER.error("Failed to set charge current to %.1f A", target_current)

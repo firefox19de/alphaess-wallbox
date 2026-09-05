@@ -140,6 +140,8 @@ class AlphaESSApiClient:
                         "status": data.get("status"),
                         "gun_is_lock": data.get("gunIsLock"),
                         "power": data.get("power"),
+                        "chargeMode": data.get("chargeMode"),
+                        "obcPhase": data.get("obcPhase"),
                     }
                 return {}
         except Exception as err:
@@ -163,7 +165,8 @@ class AlphaESSApiClient:
         }
         try:
             async with self._session.patch(url, json=payload, headers=self._get_auth_headers()) as resp:
-                if resp.status == 200:
+                # HTTP 200 und 204 gelten als Erfolg
+                if resp.status in (200, 204):
                     return True
                 text = await resp.text()
                 _LOGGER.error("PATCH g1T failed (HTTP %s): %s", resp.status, text)
@@ -181,5 +184,5 @@ class AlphaESSApiClient:
         return await self._patch_g1t_config({"chargeMode": mode})
 
     async def async_set_ev_phases(self, phases: int) -> bool:
-        """Set OBC phases (1 or 3)."""
+        """Set OBC phases (1, 2 or 3)."""
         return await self._patch_g1t_config({"obcPhase": phases})
