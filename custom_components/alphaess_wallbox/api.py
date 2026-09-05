@@ -42,14 +42,11 @@ class AlphaESSApiClient:
     async def async_login(self) -> bool:
         """Authenticate with AlphaESS cloud API."""
         try:
-            # 1. Warm-up Login Page
             await self._session.post(LOGIN_URL, headers=DEFAULT_HEADERS)
 
-            # 2. Pilot Request
             pilot_payload = {"username": self._username, "pilot": False}
             await self._session.post(API_PILOT_URL, json=pilot_payload, headers=DEFAULT_HEADERS)
 
-            # 3. Session Login Request
             session_payload = {
                 "type": "password",
                 "email": self._username,
@@ -90,7 +87,6 @@ class AlphaESSApiClient:
         try:
             headers = self._get_auth_headers()
 
-            # 1. Sites abrufen
             async with self._session.get(API_SITES_URL, headers=headers) as resp:
                 res_json = await resp.json()
                 sites = _extract_data(res_json)
@@ -99,7 +95,6 @@ class AlphaESSApiClient:
                     return False
                 self.site_id = sites[0].get("id")
 
-            # 2. Site Details abrufen
             site_url = f"{API_SITES_URL}/{self.site_id}"
             async with self._session.get(site_url, headers=headers) as resp:
                 res_json = await resp.json()
@@ -114,7 +109,6 @@ class AlphaESSApiClient:
                 _LOGGER.warning("No charging pile detected on site.")
                 return False
 
-            # 3. Wallbox Devices abrufen
             devices_url = f"{site_url}/devices"
             async with self._session.get(devices_url, headers=headers) as resp:
                 res_json = await resp.json()
@@ -152,8 +146,8 @@ class AlphaESSApiClient:
             _LOGGER.error("Failed to fetch EV charger status: %s", err)
             return {}
 
-    async def async_set_ev_charge_current(self, current: int) -> bool:
-        """Set charge current (in Amperes)."""
+    async def _patch_g1t_config(self, g1t_payload: dict) -> bool:
+        """Helper method to PATCH EV charger g1T parameters."""
         if not self.system_sn or not self.ev_charger_sn:
             if not await self.async_get_env_and_site_details():
                 return False
@@ -163,30 +157,29 @@ class AlphaESSApiClient:
             "evCharger": [
                 {
                     "sn": self.ev_charger_sn,
-                    "g1T": {
-                        "chargeCurrent": current
-                    }
+                    "g1T": g1t_payload
                 }
             ]
         }
         try:
             async with self._session.patch(url, json=payload, headers=self._get_auth_headers()) as resp:
-                return resp.status == 200
-        except Exception as err:
-            _LOGGER.error("Failed to set charge current: %s", err)
-            return False
-
-    async def async_set_ev_charge_ctrl(self, control: str) -> bool:
-        """Start or stop EV charging ('START' or 'STOP')."""
-        if not self.ev_charger_sn:
-            if not await self.async_get_env_and_site_details():
+                if resp.status == 200:
+                    return True
+                text = await resp.text()
+                _LOGGER.error("PATCH g1T failed (HTTP %s): %s", resp.status, text)
                 return False
-
-        url = f"{API_EV_URL}/{self.ev_charger_sn}/events"
-        payload = {"control": control}
-        try:
-            async with self._session.post(url, json=payload, headers=self._get_auth_headers()) as resp:
-                return resp.status == 200
         except Exception as err:
-            _LOGGER.error("Failed to set charge control state '%s': %s", control, err)
+            _LOGGER.error("Error during PATCH g1T config: %s", err)
             return False
+
+    async def async_set_ev_charge_current(self, current: float) -> bool:
+        """Set charge current (6.0 - 16.0 A in 0.1 steps)."""
+        return await self._patch_g1t_config({"chargeCurrent": round(current, 1)})
+
+    async def async_set_ev_charge_mode(self, mode: int) -> bool:
+        """Set charge mode (1=Eco-Slow, 2=Eco-General, 3=Eco-Quick, 4=Power)."""
+        return await self._patch_g1t_config({"chargeMode": mode})
+
+    async def async_set_ev_phases(self, phases: int) -> bool:
+        """Set OBC phases (1 or 3)."""
+        return await self._patch_g1t_config({"obcPhase": phases})

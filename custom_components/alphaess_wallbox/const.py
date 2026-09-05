@@ -4,7 +4,7 @@ DOMAIN = "alphaess_wallbox"
 DEFAULT_NAME = "AlphaESS Wallbox"
 
 # Platforms
-PLATFORMS = ["number", "button"]
+PLATFORMS = ["number", "select"]
 
 # Configuration keys
 CONF_USERNAME = "username"
