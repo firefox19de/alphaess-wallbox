@@ -155,7 +155,7 @@ class AlphaESSApiClient:
         except Exception as err:
             _LOGGER.error("Failed to fetch EV charger status: %s", err)
 
-        # 2. Config/g1T aus Devices-Endpunkt extrahieren (nur überschreiben, wenn ungleich None)
+        # 2. Config/g1T aus Devices-Endpunkt extrahieren (nur ueberschreiben, wenn ungleich None)
         devices_url = f"{API_SITES_URL}/{self.site_id}/devices"
         try:
             async with self._session.get(devices_url, headers=headers) as resp:
