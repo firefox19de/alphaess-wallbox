@@ -11,17 +11,20 @@ from .coordinator import AlphaESSDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+# Mapping gemäß App-Oberfläche ("Grünes Laden" vs "Leistung angeben")
 MODE_MAP = {
-    "Eco-Slow": 1,
-    "Eco-General": 2,
-    "Eco-Quick": 3,
-    "Power": 4,
+    "Grünes Laden - Langsam": 1,
+    "Grünes Laden - Standard": 2,
+    "Grünes Laden - Schnell": 3,
+    "Leistung angeben": 4,
 }
 REVERSE_MODE_MAP = {v: k for k, v in MODE_MAP.items()}
 
+# Phasenmapping inklusive zweiphasig aus dem UI-Screenshot
 PHASE_MAP = {
-    "1 Phase": 1,
-    "3 Phasen": 3,
+    "Einphasig": 1,
+    "Zweiphasig": 2,
+    "Dreiphasig": 3,
 }
 REVERSE_PHASE_MAP = {v: k for k, v in PHASE_MAP.items()}
 
@@ -42,7 +45,7 @@ async def async_setup_entry(
 
 
 class AlphaESSChargeModeSelect(CoordinatorEntity, SelectEntity):
-    """Select entity for EV charge mode."""
+    """Select entity for EV charge mode aligned with app UI."""
 
     _attr_has_entity_name = True
     _attr_name = "Lademodus"
@@ -69,8 +72,8 @@ class AlphaESSChargeModeSelect(CoordinatorEntity, SelectEntity):
         """Return currently selected mode."""
         if self.coordinator.data:
             mode_int = self.coordinator.data.get("chargeMode", 4)
-            return REVERSE_MODE_MAP.get(mode_int, "Power")
-        return "Power"
+            return REVERSE_MODE_MAP.get(mode_int, "Leistung angeben")
+        return "Leistung angeben"
 
     async def async_select_option(self, option: str) -> None:
         """Change charge mode."""
@@ -83,10 +86,10 @@ class AlphaESSChargeModeSelect(CoordinatorEntity, SelectEntity):
 
 
 class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
-    """Select entity for 1-Phase / 3-Phase switching."""
+    """Select entity for OBC phase configuration."""
 
     _attr_has_entity_name = True
-    _attr_name = "Phasen"
+    _attr_name = "OBC-Phasenauswahl"
     _attr_icon = "mdi:sine-wave"
     _attr_options = list(PHASE_MAP.keys())
 
@@ -110,8 +113,8 @@ class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
         """Return active phase setting."""
         if self.coordinator.data:
             phase_int = self.coordinator.data.get("obcPhase", 3)
-            return REVERSE_PHASE_MAP.get(phase_int, "3 Phasen")
-        return "3 Phasen"
+            return REVERSE_PHASE_MAP.get(phase_int, "Dreiphasig")
+        return "Dreiphasig"
 
     async def async_select_option(self, option: str) -> None:
         """Change phase configuration."""
