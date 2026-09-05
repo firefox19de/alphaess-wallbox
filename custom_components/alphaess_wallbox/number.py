@@ -44,7 +44,7 @@ class AlphaWallboxCurrentNumber(CoordinatorEntity, NumberEntity):
     _attr_mode = NumberMode.SLIDER
     _attr_native_min_value = 6
     _attr_native_max_value = 16
-    _attr_native_step = 1
+    _attr_native_step = 0.1
     _attr_native_unit_of_measurement = "A"
 
     def __init__(self, coordinator, device_info, entry_id: str) -> None:
