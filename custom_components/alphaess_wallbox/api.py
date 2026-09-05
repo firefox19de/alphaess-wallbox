@@ -39,7 +39,7 @@ class AlphaESSApiClient:
         self.ev_charger_sn = None
         self.has_charging_pile = False
 
-        # Interner Zustandsspeicher
+        # Dauerhafter lokaler Zustandsspeicher
         self.last_known_config = {
             "chargeCurrent": 6.0,
             "chargeMode": 4,
@@ -135,7 +135,7 @@ class AlphaESSApiClient:
         """Get real-time EV charger status merged with cached/fetched config."""
         if not self.ev_charger_sn:
             if not await self.async_get_env_and_site_details():
-                return self.last_known_config
+                return dict(self.last_known_config)
 
         result = dict(self.last_known_config)
         headers = self._get_auth_headers()
@@ -155,7 +155,7 @@ class AlphaESSApiClient:
         except Exception as err:
             _LOGGER.error("Failed to fetch EV charger status: %s", err)
 
-        # 2. Config/g1T aus Devices-Endpunkt extrahieren
+        # 2. Config/g1T aus Devices-Endpunkt extrahieren (nur überschreiben, wenn ungleich None)
         devices_url = f"{API_SITES_URL}/{self.site_id}/devices"
         try:
             async with self._session.get(devices_url, headers=headers) as resp:
@@ -168,11 +168,11 @@ class AlphaESSApiClient:
                         if ev_chargers and isinstance(ev_chargers, list) and len(ev_chargers) > 0:
                             g1t = ev_chargers[0].get("g1T", {})
                             if isinstance(g1t, dict):
-                                if "chargeCurrent" in g1t and g1t["chargeCurrent"] is not None:
+                                if g1t.get("chargeCurrent") is not None:
                                     self.last_known_config["chargeCurrent"] = float(g1t["chargeCurrent"])
-                                if "chargeMode" in g1t and g1t["chargeMode"] is not None:
+                                if g1t.get("chargeMode") is not None:
                                     self.last_known_config["chargeMode"] = int(g1t["chargeMode"])
-                                if "obcPhase" in g1t and g1t["obcPhase"] is not None:
+                                if g1t.get("obcPhase") is not None:
                                     self.last_known_config["obcPhase"] = int(g1t["obcPhase"])
                             result.update(self.last_known_config)
         except Exception as err:
@@ -198,7 +198,7 @@ class AlphaESSApiClient:
         try:
             async with self._session.patch(url, json=payload, headers=self._get_auth_headers()) as resp:
                 if resp.status in (200, 204):
-                    # Bei Erfolg Zustand lokal in der Instanz festhalten
+                    # Bei Erfolg Zustand lokal in der Instanz sichern
                     for key, val in g1t_payload.items():
                         if key in self.last_known_config:
                             self.last_known_config[key] = val

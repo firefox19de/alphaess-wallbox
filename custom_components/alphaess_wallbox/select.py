@@ -59,6 +59,7 @@ class AlphaESSChargeModeSelect(CoordinatorEntity, SelectEntity):
         super().__init__(coordinator)
         self.api = coordinator.api
         self._attr_unique_id = f"{entry.entry_id}_charge_mode"
+        self._attr_current_option = "Leistung angeben"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "AlphaESS Wallbox",
@@ -71,21 +72,25 @@ class AlphaESSChargeModeSelect(CoordinatorEntity, SelectEntity):
         if self.coordinator.data and "chargeMode" in self.coordinator.data:
             try:
                 mode_int = int(self.coordinator.data["chargeMode"])
-                return REVERSE_MODE_MAP.get(mode_int, "Leistung angeben")
+                val = REVERSE_MODE_MAP.get(mode_int)
+                if val:
+                    self._attr_current_option = val
             except (ValueError, TypeError):
                 pass
-        return "Leistung angeben"
+        return self._attr_current_option
 
     async def async_select_option(self, option: str) -> None:
         """Change charge mode."""
         mode_val = MODE_MAP.get(option)
         if mode_val:
             _LOGGER.debug("Setting AlphaESS Wallbox charge mode to %s (%d)", option, mode_val)
+            self._attr_current_option = option
+            if self.coordinator.data:
+                self.coordinator.data["chargeMode"] = mode_val
+            self.async_write_ha_state()
+
             success = await self.api.async_set_ev_charge_mode(mode_val)
             if success:
-                if self.coordinator.data:
-                    self.coordinator.data["chargeMode"] = mode_val
-                self.async_write_ha_state()
                 await self.coordinator.async_request_refresh()
 
 
@@ -106,6 +111,7 @@ class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
         super().__init__(coordinator)
         self.api = coordinator.api
         self._attr_unique_id = f"{entry.entry_id}_charge_phase"
+        self._attr_current_option = "Dreiphasig"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": "AlphaESS Wallbox",
@@ -118,19 +124,23 @@ class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
         if self.coordinator.data and "obcPhase" in self.coordinator.data:
             try:
                 phase_int = int(self.coordinator.data["obcPhase"])
-                return REVERSE_PHASE_MAP.get(phase_int, "Dreiphasig")
+                val = REVERSE_PHASE_MAP.get(phase_int)
+                if val:
+                    self._attr_current_option = val
             except (ValueError, TypeError):
                 pass
-        return "Dreiphasig"
+        return self._attr_current_option
 
     async def async_select_option(self, option: str) -> None:
         """Change phase configuration."""
         phase_val = PHASE_MAP.get(option)
         if phase_val:
             _LOGGER.debug("Setting AlphaESS Wallbox phases to %s (%d)", option, phase_val)
+            self._attr_current_option = option
+            if self.coordinator.data:
+                self.coordinator.data["obcPhase"] = phase_val
+            self.async_write_ha_state()
+
             success = await self.api.async_set_ev_phases(phase_val)
             if success:
-                if self.coordinator.data:
-                    self.coordinator.data["obcPhase"] = phase_val
-                self.async_write_ha_state()
                 await self.coordinator.async_request_refresh()
