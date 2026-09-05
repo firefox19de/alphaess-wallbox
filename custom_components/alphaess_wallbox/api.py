@@ -173,7 +173,7 @@ class AlphaESSApiClient:
 
     async def async_set_ev_charge_current(self, current: float) -> bool:
         """Setzt die Ladestromstaerke in Ampere (6-16 A)."""
-        return await self._patch_g1t({"chargeCurrent": val})
+        return await self._patch_g1t({"chargeCurrent": float(current)})
 
     async def async_set_ev_charge_mode(self, mode: int) -> bool:
         """Setzt den Lademodus (1=Eco-Langsam, 2=Eco-Standard, 3=Eco-Schnell, 4=Leistung)."""
