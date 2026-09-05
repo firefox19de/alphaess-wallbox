@@ -125,28 +125,47 @@ class AlphaESSApiClient:
             return False
 
     async def async_get_ev_status(self) -> dict:
-        """Get real-time EV charger status."""
+        """Get real-time EV charger status and current configuration."""
         if not self.ev_charger_sn:
             if not await self.async_get_env_and_site_details():
                 return {}
 
-        url = f"{API_EV_URL}/{self.ev_charger_sn}/real-status"
+        result = {}
+        headers = self._get_auth_headers()
+
+        # 1. Echtzeit-Status abrufen
+        status_url = f"{API_EV_URL}/{self.ev_charger_sn}/real-status"
         try:
-            async with self._session.get(url, headers=self._get_auth_headers()) as resp:
+            async with self._session.get(status_url, headers=headers) as resp:
                 res_json = await resp.json()
                 data = _extract_data(res_json)
                 if isinstance(data, dict):
-                    return {
+                    result.update({
                         "status": data.get("status"),
                         "gun_is_lock": data.get("gunIsLock"),
                         "power": data.get("power"),
-                        "chargeMode": data.get("chargeMode"),
-                        "obcPhase": data.get("obcPhase"),
-                    }
-                return {}
+                    })
         except Exception as err:
-            _LOGGER.error("Failed to fetch EV charger status: %s", err)
-            return {}
+            _LOGGER.error("Failed to fetch EV charger real-status: %s", err)
+
+        # 2. Konfigurationsdaten (g1T) abrufen
+        site_url = f"{API_SITES_URL}/{self.site_id}/devices"
+        try:
+            async with self._session.get(site_url, headers=headers) as resp:
+                res_json = await resp.json()
+                devices_data = _extract_data(res_json)
+                if isinstance(devices_data, dict):
+                    ess_list = devices_data.get("ess", [])
+                    if ess_list and "evChargers" in ess_list[0] and ess_list[0]["evChargers"]:
+                        g1t = ess_list[0]["evChargers"][0].get("g1T", {})
+                        if isinstance(g1t, dict):
+                            result["chargeCurrent"] = g1t.get("chargeCurrent")
+                            result["chargeMode"] = g1t.get("chargeMode")
+                            result["obcPhase"] = g1t.get("obcPhase")
+        except Exception as err:
+            _LOGGER.error("Failed to fetch EV charger configuration: %s", err)
+
+        return result
 
     async def _patch_g1t_config(self, g1t_payload: dict) -> bool:
         """Helper method to PATCH EV charger g1T parameters."""
@@ -165,8 +184,8 @@ class AlphaESSApiClient:
         }
         try:
             async with self._session.patch(url, json=payload, headers=self._get_auth_headers()) as resp:
-                # HTTP 200 und 204 gelten als Erfolg
                 if resp.status in (200, 204):
+                    _LOGGER.debug("PATCH g1T successful: %s", g1t_payload)
                     return True
                 text = await resp.text()
                 _LOGGER.error("PATCH g1T failed (HTTP %s): %s", resp.status, text)

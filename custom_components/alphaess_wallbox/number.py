@@ -52,14 +52,21 @@ class AlphaESSChargeCurrentNumber(CoordinatorEntity, NumberEntity):
     @property
     def native_value(self) -> float | None:
         """Return the current charge current value."""
-        if self.coordinator.data and "current" in self.coordinator.data:
-            return float(self.coordinator.data["current"])
+        if self.coordinator.data and "chargeCurrent" in self.coordinator.data:
+            val = self.coordinator.data["chargeCurrent"]
+            if val is not None:
+                return float(val)
         return 6.0
 
     async def async_set_native_value(self, value: float) -> None:
         """Set new charge current with 0.1A precision."""
         target_current = round(value, 1)
         _LOGGER.debug("Setting AlphaESS Wallbox charge current to %.1f A", target_current)
+        
+        # Optimistisches lokales Update, um ein Verspringen vor dem Refresh zu verhindern
+        if self.coordinator.data:
+            self.coordinator.data["chargeCurrent"] = target_current
+
         success = await self.api.async_set_ev_charge_current(target_current)
         if success:
             await self.coordinator.async_request_refresh()

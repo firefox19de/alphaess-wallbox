@@ -11,16 +11,16 @@ from .coordinator import AlphaESSDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-# Mapping gemäß App-Oberfläche ("Grünes Laden" vs "Leistung angeben")
+# Options mapping aligned with official AlphaESS app UI
 MODE_MAP = {
-    "Grünes Laden - Langsam": 1,
-    "Grünes Laden - Standard": 2,
-    "Grünes Laden - Schnell": 3,
+    "Gruenes Laden - Langsam": 1,
+    "Gruenes Laden - Standard": 2,
+    "Gruenes Laden - Schnell": 3,
     "Leistung angeben": 4,
 }
 REVERSE_MODE_MAP = {v: k for k, v in MODE_MAP.items()}
 
-# Phasenmapping inklusive zweiphasig aus dem UI-Screenshot
+# Phase selection options
 PHASE_MAP = {
     "Einphasig": 1,
     "Zweiphasig": 2,
@@ -70,9 +70,10 @@ class AlphaESSChargeModeSelect(CoordinatorEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return currently selected mode."""
-        if self.coordinator.data:
-            mode_int = self.coordinator.data.get("chargeMode", 4)
-            return REVERSE_MODE_MAP.get(mode_int, "Leistung angeben")
+        if self.coordinator.data and "chargeMode" in self.coordinator.data:
+            mode_int = self.coordinator.data.get("chargeMode")
+            if mode_int is not None:
+                return REVERSE_MODE_MAP.get(int(mode_int), "Leistung angeben")
         return "Leistung angeben"
 
     async def async_select_option(self, option: str) -> None:
@@ -80,9 +81,16 @@ class AlphaESSChargeModeSelect(CoordinatorEntity, SelectEntity):
         mode_val = MODE_MAP.get(option)
         if mode_val:
             _LOGGER.debug("Setting AlphaESS Wallbox charge mode to %s (%d)", option, mode_val)
+            
+            # Optimistisches lokales Update, um Verspringen in der HA UI zu verhindern
+            if self.coordinator.data:
+                self.coordinator.data["chargeMode"] = mode_val
+
             success = await self.api.async_set_ev_charge_mode(mode_val)
             if success:
                 await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error("Failed to set charge mode to %s", option)
 
 
 class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
@@ -111,9 +119,10 @@ class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
     @property
     def current_option(self) -> str | None:
         """Return active phase setting."""
-        if self.coordinator.data:
-            phase_int = self.coordinator.data.get("obcPhase", 3)
-            return REVERSE_PHASE_MAP.get(phase_int, "Dreiphasig")
+        if self.coordinator.data and "obcPhase" in self.coordinator.data:
+            phase_int = self.coordinator.data.get("obcPhase")
+            if phase_int is not None:
+                return REVERSE_PHASE_MAP.get(int(phase_int), "Dreiphasig")
         return "Dreiphasig"
 
     async def async_select_option(self, option: str) -> None:
@@ -121,6 +130,13 @@ class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
         phase_val = PHASE_MAP.get(option)
         if phase_val:
             _LOGGER.debug("Setting AlphaESS Wallbox phases to %s (%d)", option, phase_val)
+            
+            # Optimistisches lokales Update, um Verspringen in der HA UI zu verhindern
+            if self.coordinator.data:
+                self.coordinator.data["obcPhase"] = phase_val
+
             success = await self.api.async_set_ev_phases(phase_val)
             if success:
                 await self.coordinator.async_request_refresh()
+            else:
+                _LOGGER.error("Failed to set phase configuration to %s", option)
