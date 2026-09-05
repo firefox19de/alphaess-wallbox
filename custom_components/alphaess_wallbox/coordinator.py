@@ -1,4 +1,4 @@
-"""Coordinator for AlphaESS Wallbox integration."""
+"""Coordinator fuer die AlphaESS Wallbox Integration."""
 from datetime import timedelta
 import logging
 
@@ -10,25 +10,27 @@ from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
-class AlphaESSDataUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching AlphaESS Wallbox data."""
 
-    def __init__(self, hass: HomeAssistant, api: AlphaESSApiClient) -> None:
-        """Initialize coordinator."""
-        self.api = api
+class AlphaESSDataUpdateCoordinator(DataUpdateCoordinator[dict]):
+    """Koordiniert die abgerufenen Daten der AlphaESS Wallbox."""
+
+    def __init__(self, hass: HomeAssistant, client: AlphaESSApiClient) -> None:
         super().__init__(
             hass,
             _LOGGER,
-            name=DOMAIN,
+            name="AlphaESS Wallbox",
             update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
+        self.client = client
 
     async def _async_update_data(self) -> dict:
-        """Fetch data from AlphaESS Cloud API."""
-        try:
-            status_data = await self.api.async_get_ev_status()
-            if not status_data:
-                _LOGGER.warning("Empty response received from AlphaESS Wallbox API")
-            return status_data
-        except Exception as err:
-            raise UpdateFailed(f"Error communicating with AlphaESS API: {err}") from err
+        """Fetch data from API with automatic re-authentication on failure."""
+        data = await self.client.async_get_ev_status()
+        if data is None:
+            _LOGGER.warning("AlphaESS: Session abgelaufen oder API-Fehler. Fuehre Re-Login aus...")
+            if await self.client.async_login():
+                _LOGGER.info("AlphaESS: Re-Login erfolgreich. Erneute Datenabfrage...")
+                data = await self.client.async_get_ev_status()
+        if data is None:
+            raise UpdateFailed("AlphaESS Web API konnte auch nach Re-Login keine Daten liefern.")
+        return data

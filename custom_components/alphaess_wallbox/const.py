@@ -1,14 +1,10 @@
-"""Constants for AlphaESS Wallbox Integration."""
+"""Konstanten fuer die AlphaESS Wallbox Integration."""
 
 DOMAIN = "alphaess_wallbox"
-DEFAULT_NAME = "AlphaESS Wallbox"
 
-# Platforms
-PLATFORMS = ["number", "select"]
+PLATFORMS = ["select", "number", "button"]
 
-# Configuration keys
 CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 
-# Defaults
-DEFAULT_SCAN_INTERVAL = 30
+DEFAULT_SCAN_INTERVAL = 60

@@ -1,10 +1,8 @@
-"""Tests for the AlphaESS API client."""
-import base64
-import hashlib
+﻿"""Tests fuer den AlphaESS API-Client."""
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
-from custom_components.alphaess_wallbox.api import AlphaWebApiClient, _hash_password
+from custom_components.alphaess_wallbox.api import AlphaESSApiClient
 
 
 class MockResponse:
@@ -12,249 +10,146 @@ class MockResponse:
         self.status = status
         self._payload = payload
         self._text_body = text_body
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
-
-    async def json(self, content_type=None):
-        return self._payload
-
-    async def text(self):
-        return self._text_body
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): return False
+    async def json(self, content_type=None): return self._payload
+    async def text(self): return self._text_body
 
 
-class AsyncCallWrapper:
+class AsyncCtx:
+    """Dual-Mode: direkt await-bar UND als async-with nutzbar."""
     def __init__(self, response):
         self.response = response
-
     def __await__(self):
-        async def _inner():
-            return self.response
+        async def _i(): return self.response
+        return _i().__await__()
+    async def __aenter__(self): return self.response
+    async def __aexit__(self, *a): return False
 
-        return _inner().__await__()
 
-    async def __aenter__(self):
-        return self.response
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
+def make_session(post_payload=None, get_payload=None, patch_status=200):
+    s = MagicMock()
+    s.post = MagicMock(return_value=AsyncCtx(MockResponse(200, post_payload)))
+    s.get = MagicMock(return_value=AsyncCtx(MockResponse(200, get_payload)))
+    s.patch = MagicMock(return_value=AsyncCtx(MockResponse(patch_status)))
+    return s
 
 
 def test_module_imports():
-    """Regressionstest: Das Paket sollte ohne zusätzliche Pfad-Hacks importierbar sein."""
-    assert AlphaWebApiClient is not None
-
-
-def test_hash_password_is_sha256_base64():
-    """_hash_password muss SHA-256 gehasht und Base64-enkodiert zurückgeben."""
-    password = "test_pass"
-    expected = base64.b64encode(hashlib.sha256(password.encode()).digest()).decode()
-    assert _hash_password(password) == expected
-
-
-def test_hash_password_not_plaintext():
-    """Das gehashte Passwort darf niemals dem Klartext entsprechen."""
-    assert _hash_password("geheim123") != "geheim123"
+    assert AlphaESSApiClient is not None
 
 
 @pytest.mark.asyncio
-async def test_login_stores_token_field():
-    """Login muss das 'token'-Feld (neue API) aus der Antwort speichern."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "user@test.com", "pass")
-
-    mock_session = MagicMock()
-    mock_session.post = MagicMock(
-        side_effect=lambda *args, **kwargs: AsyncCallWrapper(
-            MockResponse(status=200, payload={"token": "my-access-token", "refreshToken": "my-refresh"})
-        )
-    )
-    client._get_session = AsyncMock(return_value=mock_session)
-
-    result = await client.login()
-
-    assert result is True
-    assert client._token == "my-access-token"
+async def test_login_success():
+    session = make_session(post_payload={"accessToken": "tok123", "refreshToken": "ref"})
+    client = AlphaESSApiClient(session, "user@test.com", "pass")
+    assert await client.async_login() is True
+    assert client._access_token == "Bearer tok123"
+    assert client._refresh_token == "ref"
 
 
 @pytest.mark.asyncio
-async def test_login_sends_hashed_password():
-    """Login muss das Passwort als SHA-256/Base64-Hash senden, nicht im Klartext."""
-    password = "geheim123"
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "user@test.com", password)
-    captured_payload = {}
-
-    def fake_post(url, json=None, headers=None, timeout=None):
-        captured_payload.update(json or {})
-        return AsyncCallWrapper(MockResponse(status=200, payload={"token": "tok"}))
-
-    mock_session = MagicMock()
-    mock_session.post = fake_post
-    client._get_session = AsyncMock(return_value=mock_session)
-
-    await client.login()
-
-    sent_password = captured_payload.get("password", "")
-    assert sent_password != password
-    assert sent_password == _hash_password(password)
+async def test_login_missing_token_returns_false():
+    session = make_session(post_payload={"error": "bad"})
+    client = AlphaESSApiClient(session, "u", "p")
+    assert await client.async_login() is False
+    assert client._access_token is None
 
 
 @pytest.mark.asyncio
-async def test_login_409_deletes_session_and_retries():
-    """Bei HTTP 409 muss die alte Session per DELETE gelöscht und danach neu eingeloggt werden."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "user@test.com", "pass")
-
-    call_count = {"post": 0, "delete": 0}
-
-    def fake_post(url, json=None, headers=None, timeout=None):
-        call_count["post"] += 1
-        if call_count["post"] == 1:
-            return AsyncCallWrapper(MockResponse(status=409, payload={}))
-        return AsyncCallWrapper(MockResponse(status=200, payload={"token": "new-token"}))
-
-    def fake_delete(url, headers=None, timeout=None):
-        call_count["delete"] += 1
-        return AsyncCallWrapper(MockResponse(status=204))
-
-    mock_session = MagicMock()
-    mock_session.post = fake_post
-    mock_session.delete = fake_delete
-    client._get_session = AsyncMock(return_value=mock_session)
-
-    result = await client.login()
-
-    assert result is True
-    assert client._token == "new-token"
-    assert call_count["post"] == 2, "POST muss zweimal aufgerufen werden"
-    assert call_count["delete"] == 1, "DELETE muss einmal aufgerufen werden"
+async def test_login_exception_returns_false():
+    session = MagicMock()
+    session.post = MagicMock(side_effect=Exception("Network error"))
+    client = AlphaESSApiClient(session, "u", "p")
+    assert await client.async_login() is False
 
 
 @pytest.mark.asyncio
-async def test_login_returns_false_for_non_successful_status():
-    """Login sollte bei fehlerhaften HTTP-Antworten sauber fehlschlagen."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "test_user", "test_pass")
-
-    mock_session = MagicMock()
-    mock_session.post = MagicMock(
-        side_effect=lambda *args, **kwargs: AsyncCallWrapper(MockResponse(status=500, payload={})))
-    client._get_session = AsyncMock(return_value=mock_session)
-
-    result = await client.login()
-
-    assert result is False
-    assert client._token is None
-
-
-@pytest.mark.asyncio
-async def test_request_clears_token_when_refresh_login_fails():
-    """Ein fehlerhaftes Token-Refresh sollte den alten Token nicht weiter verwenden."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "test_user", "test_pass")
-    client._token = "stale-token"
-
-    mock_session = MagicMock()
-    mock_session.request = MagicMock(
-        side_effect=lambda *args, **kwargs: AsyncCallWrapper(MockResponse(status=401, payload={})))
-    client._get_session = AsyncMock(return_value=mock_session)
-    client.login = AsyncMock(return_value=False)
-
-    result = await client._request("GET", "/test")
-
-    assert result is None
-    assert client._token is None
+async def test_get_env_and_site_details_success():
+    session = MagicMock()
+    session.post = MagicMock(return_value=AsyncCtx(MockResponse(200, {"accessToken": "tok"})))
+    sites_r = MockResponse(200, [{"id": "SITE1"}])
+    site_r = MockResponse(200, {"hasChargingPile": True, "essDevices": [{"sysSn": "ESS123"}]})
+    dev_r = MockResponse(200, {"ess": [{"evChargers": [{"sysSn": "EVC456"}]}]})
+    session.get = MagicMock(side_effect=[AsyncCtx(sites_r), AsyncCtx(site_r), AsyncCtx(dev_r)])
+    client = AlphaESSApiClient(session, "u", "p")
+    client._access_token = "Bearer tok"
+    assert await client.async_get_env_and_site_details() is True
+    assert client.site_id == "SITE1"
+    assert client.system_sn == "ESS123"
+    assert client.ev_charger_sn == "EVC456"
 
 
 @pytest.mark.asyncio
-async def test_load_system_and_charger_from_devices_in_site():
-    """Geräte-SNs sollen direkt aus dem 'devices'-Array im Sites-Objekt gelesen werden (neue API)."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "u", "p")
-    client._token = "tok"
-    client._request = AsyncMock(return_value=[
-        {
-            "id": "qGuKtccdRL6URCui2w",
-            "devices": [
-                {"type": "Ess", "sysSn": "ALB002022080906"},
-                {"type": "EvCharger", "sysSn": "ALP2021082020071"},
-            ],
-        }
-    ])
-
-    result = await client.load_system_and_charger()
-
-    assert result is True
-    assert client.site_id == "qGuKtccdRL6URCui2w"
-    assert client.system_sn == "ALB002022080906"
-    assert client.ev_charger_sn == "ALP2021082020071"
+async def test_get_env_no_sites_returns_false():
+    session = MagicMock()
+    session.get = MagicMock(return_value=AsyncCtx(MockResponse(200, [])))
+    client = AlphaESSApiClient(session, "u", "p")
+    client._access_token = "Bearer tok"
+    assert await client.async_get_env_and_site_details() is False
 
 
 @pytest.mark.asyncio
-async def test_load_system_and_charger_returns_false_if_no_sites():
-    """Gibt False zurück wenn /sites keine Daten liefert."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "u", "p")
-    client._token = "tok"
-    client._request = AsyncMock(return_value=[])
-
-    assert await client.load_system_and_charger() is False
-
-
-@pytest.mark.asyncio
-async def test_load_system_and_charger_skips_if_already_loaded():
-    """Zweiter Aufruf soll keine API-Requests machen wenn SNs bereits bekannt sind."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "u", "p")
-    client.system_sn = "ESS123"
-    client.ev_charger_sn = "EVC456"
-    client._request = AsyncMock()
-
-    assert await client.load_system_and_charger() is True
-    client._request.assert_not_called()
+async def test_get_ev_status_extracts_g1t():
+    session = MagicMock()
+    status_r = MockResponse(200, {"status": 2, "gunIsLock": False, "power": 3.3})
+    dev_r = MockResponse(200, {"ess": [{"evChargers": [{"sysSn": "EVC", "g1T": {"chargeCurrent": 10, "chargeMode": 4, "obcPhase": 3}}]}]})
+    session.get = MagicMock(side_effect=[AsyncCtx(status_r), AsyncCtx(dev_r)])
+    client = AlphaESSApiClient(session, "u", "p")
+    client._access_token = "Bearer tok"
+    client.ev_charger_sn = "EVC"
+    client.site_id = "SITE1"
+    result = await client.async_get_ev_status()
+    assert result["status"] == 2
+    assert result["chargeCurrent"] == 10.0
+    assert result["chargeMode"] == 4
+    assert result["obcPhase"] == 3
 
 
 @pytest.mark.asyncio
-async def test_get_wallbox_status_success():
-    """Testet, ob der Status korrekt aus der neuen v1-API-Antwort extrahiert wird."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "test_user", "test_pass")
-    client.system_sn = "mock_system_sn"
-    client.ev_charger_sn = "mock_charger_sn"
-    client.load_system_and_charger = AsyncMock(return_value=True)
-
-    client._request = AsyncMock(side_effect=[
-        # GET /ev-charger/{sn}/real-status
-        {"mode": 1},
-        # GET /ess/{sn}?components=evCharger
-        {
-            "evCharger": {
-                "g1T_chargeCurrent": 16,
-                "g1T_chargeMode": 4,
-                "g1T_obcPhase": 3,
-            }
-        },
-    ])
-
-    status = await client.get_wallbox_status()
-
-    assert status is not None
-    assert status["status_code"] == 1
-    assert status["max_current"] == 16
-    assert status["charging_mode"] == 4
-    assert status["phase"] == 3
-    assert status["charger_sn"] == "mock_charger_sn"
+async def test_patch_g1t_success():
+    session = MagicMock()
+    session.patch = MagicMock(return_value=AsyncCtx(MockResponse(200)))
+    client = AlphaESSApiClient(session, "u", "p")
+    client._access_token = "Bearer tok"
+    client.system_sn = "ESS"
+    client.ev_charger_sn = "EVC"
+    assert await client._patch_g1t({"chargeCurrent": 10}) is True
 
 
 @pytest.mark.asyncio
-async def test_get_wallbox_status_returns_none_if_no_charger():
-    """Gibt None zurück wenn load_system_and_charger fehlschlägt."""
-    mock_hass = MagicMock()
-    client = AlphaWebApiClient(mock_hass, "u", "p")
-    client.load_system_and_charger = AsyncMock(return_value=False)
+async def test_patch_g1t_http_error_returns_false():
+    session = MagicMock()
+    session.patch = MagicMock(return_value=AsyncCtx(MockResponse(400, text_body="Bad")))
+    client = AlphaESSApiClient(session, "u", "p")
+    client._access_token = "Bearer tok"
+    client.system_sn = "ESS"
+    client.ev_charger_sn = "EVC"
+    assert await client._patch_g1t({"chargeCurrent": 10}) is False
 
-    assert await client.get_wallbox_status() is None
+
+@pytest.mark.asyncio
+async def test_set_ev_charge_current_integer():
+    session = MagicMock()
+    session.patch = MagicMock(return_value=AsyncCtx(MockResponse(200)))
+    client = AlphaESSApiClient(session, "u", "p")
+    client._access_token = "Bearer tok"
+    client.system_sn = "ESS"
+    client.ev_charger_sn = "EVC"
+    assert await client.async_set_ev_charge_current(16.0) is True
+    kw = session.patch.call_args
+    payload = kw.kwargs.get("json") or kw.args[1]
+    assert payload["evCharger"][0]["g1T"]["chargeCurrent"] == 16
+
+
+@pytest.mark.asyncio
+async def test_ev_start_sends_start_control():
+    session = MagicMock()
+    session.post = MagicMock(return_value=AsyncCtx(MockResponse(200)))
+    client = AlphaESSApiClient(session, "u", "p")
+    client._access_token = "Bearer tok"
+    client.ev_charger_sn = "EVC"
+    assert await client.async_ev_start() is True
+    kw = session.post.call_args
+    payload = kw.kwargs.get("json") or kw.args[1]
+    assert payload["control"] == "START"

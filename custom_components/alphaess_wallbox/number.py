@@ -1,8 +1,9 @@
-"""Number entity for setting AlphaESS Wallbox charge current."""
+"""Number-Entity fuer den Ladestrom der AlphaESS Wallbox."""
 import logging
-from homeassistant.components.number import NumberEntity
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -11,64 +12,61 @@ from .coordinator import AlphaESSDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up AlphaESS Wallbox number entities."""
-    data = hass.data[DOMAIN][entry.entry_id]
-    coordinator: AlphaESSDataUpdateCoordinator = data["coordinator"]
+    """Set up number entities for the AlphaESS wallbox."""
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    client = coordinator.client
 
-    async_add_entities([AlphaESSChargeCurrentNumber(coordinator, entry)])
+    device_info = DeviceInfo(
+        identifiers={("alphaess", client.ev_charger_sn)},
+        name=f"Alpha ESS Charger : {client.ev_charger_sn}",
+        manufacturer="Alpha ESS",
+        model="SMILE-EVCT11",
+    )
+
+    async_add_entities(
+        [AlphaWallboxCurrentNumber(coordinator, device_info, entry.entry_id)],
+        True,
+    )
 
 
-class AlphaESSChargeCurrentNumber(CoordinatorEntity, NumberEntity):
-    """Representation of EV Charge Current setting."""
+class AlphaWallboxCurrentNumber(CoordinatorEntity, NumberEntity):
+    """Steuert die maximale Ladestromstaerke."""
 
     _attr_has_entity_name = True
-    _attr_name = "Ladestrom"
-    _attr_native_min_value = 6.0
-    _attr_native_max_value = 16.0
-    _attr_native_step = 0.1
-    _attr_native_unit_of_measurement = "A"
+    _attr_translation_key = "maxcurrent"
     _attr_icon = "mdi:current-ac"
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_min_value = 6
+    _attr_native_max_value = 16
+    _attr_native_step = 1
+    _attr_native_unit_of_measurement = "A"
 
-    def __init__(
-        self,
-        coordinator: AlphaESSDataUpdateCoordinator,
-        entry: ConfigEntry,
-    ) -> None:
-        """Initialize the charge current entity."""
+    def __init__(self, coordinator, device_info, entry_id: str) -> None:
         super().__init__(coordinator)
-        self.api = coordinator.api
-        self._attr_unique_id = f"{entry.entry_id}_charge_current"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "AlphaESS Wallbox",
-            "manufacturer": "AlphaESS",
-        }
+        self._attr_device_info = device_info
+        self._attr_unique_id = f"{entry_id}_ev_charger_max_current_setting"
 
     @property
     def native_value(self) -> float | None:
-        """Return the current charge current value."""
-        if self.coordinator.data and "chargeCurrent" in self.coordinator.data:
-            val = self.coordinator.data["chargeCurrent"]
-            if val is not None:
-                return float(val)
-        return 6.0
+        if self.coordinator.data is None:
+            return None
+        val = self.coordinator.data.get("chargeCurrent")
+        return float(val) if val is not None else None
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set new charge current with 0.1A precision."""
-        target_current = round(value, 1)
-        _LOGGER.debug("Setting AlphaESS Wallbox charge current to %.1f A", target_current)
-        
-        # Optimistisches lokales Update, um ein Verspringen vor dem Refresh zu verhindern
-        if self.coordinator.data:
-            self.coordinator.data["chargeCurrent"] = target_current
-
-        success = await self.api.async_set_ev_charge_current(target_current)
+        target = int(value)
+        _LOGGER.debug("Setting Wallbox current to %sA", target)
+        if self.coordinator.data is not None:
+            self.coordinator.data["chargeCurrent"] = float(target)
+        self.async_write_ha_state()
+        success = await self.coordinator.client.async_set_ev_charge_current(float(target))
         if success:
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Failed to set charge current to %.1f A", target_current)
+            _LOGGER.error("Failed to set charge current to %sA", target)
