@@ -58,13 +58,25 @@ async def test_number_entity_native_value(mock_client, device_info):
 
 
 @pytest.mark.asyncio
-async def test_number_entity_set_value(mock_client, device_info):
+async def test_number_entity_set_value_whole(mock_client, device_info):
+    """Ganzzahlige Werte werden unveraendert weitergegeben."""
     coordinator = FakeCoordinator(mock_client, data={"chargeCurrent": 6.0})
     number = AlphaWallboxCurrentNumber(coordinator, device_info, "test_entry")
     number.async_write_ha_state = MagicMock()
     await number.async_set_native_value(14.0)
     mock_client.async_set_ev_charge_current.assert_called_once_with(14.0)
     coordinator.async_request_refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_number_entity_set_value_decimal(mock_client, device_info):
+    """Dezimalwerte wie 7.4 A werden mit 0.1-Praezision weitergegeben."""
+    coordinator = FakeCoordinator(mock_client, data={"chargeCurrent": 6.0})
+    number = AlphaWallboxCurrentNumber(coordinator, device_info, "test_entry")
+    number.async_write_ha_state = MagicMock()
+    await number.async_set_native_value(7.4)
+    mock_client.async_set_ev_charge_current.assert_called_once_with(7.4)
+    assert coordinator.data["chargeCurrent"] == 7.4
 
 
 @pytest.mark.asyncio

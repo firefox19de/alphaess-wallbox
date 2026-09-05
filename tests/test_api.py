@@ -129,7 +129,8 @@ async def test_patch_g1t_http_error_returns_false():
 
 
 @pytest.mark.asyncio
-async def test_set_ev_charge_current_integer():
+async def test_set_ev_charge_current_whole_number():
+    """Ganzzahlige Ampere-Werte werden als float uebergeben (z.B. 16.0)."""
     session = MagicMock()
     session.patch = MagicMock(return_value=AsyncCtx(MockResponse(200)))
     client = AlphaESSApiClient(session, "u", "p")
@@ -139,7 +140,22 @@ async def test_set_ev_charge_current_integer():
     assert await client.async_set_ev_charge_current(16.0) is True
     kw = session.patch.call_args
     payload = kw.kwargs.get("json") or kw.args[1]
-    assert payload["evCharger"][0]["g1T"]["chargeCurrent"] == 16
+    assert payload["evCharger"][0]["g1T"]["chargeCurrent"] == 16.0
+
+
+@pytest.mark.asyncio
+async def test_set_ev_charge_current_decimal():
+    """Dezimalwerte (z.B. 7.4 A) werden unveraendert als float uebergeben."""
+    session = MagicMock()
+    session.patch = MagicMock(return_value=AsyncCtx(MockResponse(200)))
+    client = AlphaESSApiClient(session, "u", "p")
+    client._access_token = "Bearer tok"
+    client.system_sn = "ESS"
+    client.ev_charger_sn = "EVC"
+    assert await client.async_set_ev_charge_current(7.4) is True
+    kw = session.patch.call_args
+    payload = kw.kwargs.get("json") or kw.args[1]
+    assert payload["evCharger"][0]["g1T"]["chargeCurrent"] == 7.4
 
 
 @pytest.mark.asyncio

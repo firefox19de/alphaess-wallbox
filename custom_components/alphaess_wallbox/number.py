@@ -60,13 +60,13 @@ class AlphaWallboxCurrentNumber(CoordinatorEntity, NumberEntity):
         return float(val) if val is not None else None
 
     async def async_set_native_value(self, value: float) -> None:
-        target = int(value)
-        _LOGGER.debug("Setting Wallbox current to %sA", target)
+        target = round(value, 1)
+        _LOGGER.debug("Setting Wallbox current to %.1fA", target)
         if self.coordinator.data is not None:
-            self.coordinator.data["chargeCurrent"] = float(target)
+            self.coordinator.data["chargeCurrent"] = target
         self.async_write_ha_state()
-        success = await self.coordinator.client.async_set_ev_charge_current(float(target))
+        success = await self.coordinator.client.async_set_ev_charge_current(target)
         if success:
             await self.coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Failed to set charge current to %sA", target)
+            _LOGGER.error("Failed to set charge current to %.1fA", target)
