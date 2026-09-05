@@ -19,6 +19,12 @@ DEFAULT_HEADERS = {
     "X-Requested-With": "XMLHttpRequest",
 }
 
+def _extract_data(res_json):
+    """Extract inner data payload if present, otherwise return full dict."""
+    if isinstance(res_json, dict) and "data" in res_json:
+        return res_json["data"]
+    return res_json
+
 class AlphaESSApiClient:
     """Client for AlphaESS Cloud API v2."""
 
@@ -51,10 +57,9 @@ class AlphaESSApiClient:
             }
             async with self._session.post(API_SESSION_URL, json=session_payload, headers=DEFAULT_HEADERS) as resp:
                 data = await resp.json()
+                res_data = _extract_data(data)
                 
-                # Responsedaten-Struktur extrahieren
-                res_data = data.get("data", {}) if isinstance(data, dict) else {}
-                token = res_data.get("accessToken")
+                token = res_data.get("accessToken") if isinstance(res_data, dict) else None
                 
                 if not token:
                     _LOGGER.error("Login failed, missing accessToken: %s", data)
@@ -69,7 +74,7 @@ class AlphaESSApiClient:
             _LOGGER.error("Error during AlphaESS authentication: %s", err)
             return False
 
-    def _get_auth_headers((self) -> dict:
+    def _get_auth_headers(self) -> dict:
         """Get headers with Bearer token."""
         headers = DEFAULT_HEADERS.copy()
         if self._access_token:
@@ -87,9 +92,9 @@ class AlphaESSApiClient:
 
             # 1. Sites abrufen
             async with self._session.get(API_SITES_URL, headers=headers) as resp:
-                sites_data = await resp.json()
-                sites = sites_data.get("data", [])
-                if not sites:
+                res_json = await resp.json()
+                sites = _extract_data(res_json)
+                if not isinstance(sites, list) or not sites:
                     _LOGGER.error("No sites found in AlphaESS account.")
                     return False
                 self.site_id = sites[0].get("id")
@@ -97,12 +102,13 @@ class AlphaESSApiClient:
             # 2. Site Details abrufen
             site_url = f"{API_SITES_URL}/{self.site_id}"
             async with self._session.get(site_url, headers=headers) as resp:
-                site_details = (await resp.json()).get("data", {})
-                self.has_charging_pile = site_details.get("hasChargingPile", False)
-                
-                ess_devices = site_details.get("essDevices", [])
-                if ess_devices:
-                    self.system_sn = ess_devices[0].get("sysSn")
+                res_json = await resp.json()
+                site_details = _extract_data(res_json)
+                if isinstance(site_details, dict):
+                    self.has_charging_pile = site_details.get("hasChargingPile", False)
+                    ess_devices = site_details.get("essDevices", [])
+                    if ess_devices:
+                        self.system_sn = ess_devices[0].get("sysSn")
 
             if not self.has_charging_pile:
                 _LOGGER.warning("No charging pile detected on site.")
@@ -111,10 +117,12 @@ class AlphaESSApiClient:
             # 3. Wallbox Devices abrufen
             devices_url = f"{site_url}/devices"
             async with self._session.get(devices_url, headers=headers) as resp:
-                devices_data = (await resp.json()).get("data", {})
-                ess_list = devices_data.get("ess", [])
-                if ess_list and "evChargers" in ess_list[0] and ess_list[0]["evChargers"]:
-                    self.ev_charger_sn = ess_list[0]["evChargers"][0].get("sysSn")
+                res_json = await resp.json()
+                devices_data = _extract_data(res_json)
+                if isinstance(devices_data, dict):
+                    ess_list = devices_data.get("ess", [])
+                    if ess_list and "evChargers" in ess_list[0] and ess_list[0]["evChargers"]:
+                        self.ev_charger_sn = ess_list[0]["evChargers"][0].get("sysSn")
 
             return bool(self.ev_charger_sn)
 
@@ -131,12 +139,15 @@ class AlphaESSApiClient:
         url = f"{API_EV_URL}/{self.ev_charger_sn}/real-status"
         try:
             async with self._session.get(url, headers=self._get_auth_headers()) as resp:
-                data = (await resp.json()).get("data", {})
-                return {
-                    "status": data.get("status"),
-                    "gun_is_lock": data.get("gunIsLock"),
-                    "power": data.get("power"),
-                }
+                res_json = await resp.json()
+                data = _extract_data(res_json)
+                if isinstance(data, dict):
+                    return {
+                        "status": data.get("status"),
+                        "gun_is_lock": data.get("gunIsLock"),
+                        "power": data.get("power"),
+                    }
+                return {}
         except Exception as err:
             _LOGGER.error("Failed to fetch EV charger status: %s", err)
             return {}
@@ -178,4 +189,4 @@ class AlphaESSApiClient:
                 return resp.status == 200
         except Exception as err:
             _LOGGER.error("Failed to set charge control state '%s': %s", control, err)
-            return Falsees.get("code") == 200
+            return False
