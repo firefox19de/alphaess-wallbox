@@ -39,6 +39,13 @@ class AlphaESSApiClient:
         self.ev_charger_sn = None
         self.has_charging_pile = False
 
+        # Interner Zustandsspeicher
+        self.last_known_config = {
+            "chargeCurrent": 6.0,
+            "chargeMode": 4,
+            "obcPhase": 3,
+        }
+
     async def async_login(self) -> bool:
         """Authenticate with AlphaESS cloud API."""
         try:
@@ -125,15 +132,15 @@ class AlphaESSApiClient:
             return False
 
     async def async_get_ev_status(self) -> dict:
-        """Get real-time EV charger status and current configuration."""
+        """Get real-time EV charger status merged with cached/fetched config."""
         if not self.ev_charger_sn:
             if not await self.async_get_env_and_site_details():
-                return {}
+                return self.last_known_config
 
-        result = {}
+        result = dict(self.last_known_config)
         headers = self._get_auth_headers()
 
-        # 1. Echtzeit-Status abrufen
+        # 1. Real-time Status
         status_url = f"{API_EV_URL}/{self.ev_charger_sn}/real-status"
         try:
             async with self._session.get(status_url, headers=headers) as resp:
@@ -146,24 +153,30 @@ class AlphaESSApiClient:
                         "power": data.get("power"),
                     })
         except Exception as err:
-            _LOGGER.error("Failed to fetch EV charger real-status: %s", err)
+            _LOGGER.error("Failed to fetch EV charger status: %s", err)
 
-        # 2. Konfigurationsdaten (g1T) abrufen
-        site_url = f"{API_SITES_URL}/{self.site_id}/devices"
+        # 2. Config/g1T aus Devices-Endpunkt extrahieren
+        devices_url = f"{API_SITES_URL}/{self.site_id}/devices"
         try:
-            async with self._session.get(site_url, headers=headers) as resp:
+            async with self._session.get(devices_url, headers=headers) as resp:
                 res_json = await resp.json()
                 devices_data = _extract_data(res_json)
                 if isinstance(devices_data, dict):
                     ess_list = devices_data.get("ess", [])
-                    if ess_list and "evChargers" in ess_list[0] and ess_list[0]["evChargers"]:
-                        g1t = ess_list[0]["evChargers"][0].get("g1T", {})
-                        if isinstance(g1t, dict):
-                            result["chargeCurrent"] = g1t.get("chargeCurrent")
-                            result["chargeMode"] = g1t.get("chargeMode")
-                            result["obcPhase"] = g1t.get("obcPhase")
+                    if ess_list and isinstance(ess_list, list) and len(ess_list) > 0:
+                        ev_chargers = ess_list[0].get("evChargers", [])
+                        if ev_chargers and isinstance(ev_chargers, list) and len(ev_chargers) > 0:
+                            g1t = ev_chargers[0].get("g1T", {})
+                            if isinstance(g1t, dict):
+                                if "chargeCurrent" in g1t and g1t["chargeCurrent"] is not None:
+                                    self.last_known_config["chargeCurrent"] = float(g1t["chargeCurrent"])
+                                if "chargeMode" in g1t and g1t["chargeMode"] is not None:
+                                    self.last_known_config["chargeMode"] = int(g1t["chargeMode"])
+                                if "obcPhase" in g1t and g1t["obcPhase"] is not None:
+                                    self.last_known_config["obcPhase"] = int(g1t["obcPhase"])
+                            result.update(self.last_known_config)
         except Exception as err:
-            _LOGGER.error("Failed to fetch EV charger configuration: %s", err)
+            _LOGGER.debug("Could not fetch g1T config from site devices: %s", err)
 
         return result
 
@@ -185,7 +198,10 @@ class AlphaESSApiClient:
         try:
             async with self._session.patch(url, json=payload, headers=self._get_auth_headers()) as resp:
                 if resp.status in (200, 204):
-                    _LOGGER.debug("PATCH g1T successful: %s", g1t_payload)
+                    # Bei Erfolg Zustand lokal in der Instanz festhalten
+                    for key, val in g1t_payload.items():
+                        if key in self.last_known_config:
+                            self.last_known_config[key] = val
                     return True
                 text = await resp.text()
                 _LOGGER.error("PATCH g1T failed (HTTP %s): %s", resp.status, text)
@@ -196,12 +212,13 @@ class AlphaESSApiClient:
 
     async def async_set_ev_charge_current(self, current: float) -> bool:
         """Set charge current (6.0 - 16.0 A in 0.1 steps)."""
-        return await self._patch_g1t_config({"chargeCurrent": round(current, 1)})
+        val = int(current) if current.is_integer() else round(current, 1)
+        return await self._patch_g1t_config({"chargeCurrent": val})
 
     async def async_set_ev_charge_mode(self, mode: int) -> bool:
         """Set charge mode (1=Eco-Slow, 2=Eco-General, 3=Eco-Quick, 4=Power)."""
-        return await self._patch_g1t_config({"chargeMode": mode})
+        return await self._patch_g1t_config({"chargeMode": int(mode)})
 
     async def async_set_ev_phases(self, phases: int) -> bool:
         """Set OBC phases (1, 2 or 3)."""
-        return await self._patch_g1t_config({"obcPhase": phases})
+        return await self._patch_g1t_config({"obcPhase": int(phases)})
