@@ -11,11 +11,11 @@ from .coordinator import AlphaESSDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-# Mapping gemäß App-Oberfläche ("Grünes Laden" vs "Leistung angeben")
+# Mapping gemÃ¤ÃŸ App-OberflÃ¤che ("GrÃ¼nes Laden" vs "Leistung angeben")
 MODE_MAP = {
-    "Grünes Laden - Langsam": 1,
-    "Grünes Laden - Standard": 2,
-    "Grünes Laden - Schnell": 3,
+    "GrÃ¼nes Laden - Langsam": 1,
+    "GrÃ¼nes Laden - Standard": 2,
+    "GrÃ¼nes Laden - Schnell": 3,
     "Leistung angeben": 4,
 }
 REVERSE_MODE_MAP = {v: k for k, v in MODE_MAP.items()}
