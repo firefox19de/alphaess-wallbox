@@ -1,26 +1,27 @@
+"""Select entities for AlphaESS Wallbox mode and phase control."""
 import logging
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .coordinator import AlphaESSDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 MODE_MAP = {
-    "Eco / Langsamladung (Nur PV)": 1,
-    "Eco / Schonladung (PV + Akku)": 2,
-    "Eco / Schnellladung": 3,
-    "Custom / Manuell (evcc-Steuerung)": 4,
+    "Eco-Slow": 1,
+    "Eco-General": 2,
+    "Eco-Quick": 3,
+    "Power": 4,
 }
 REVERSE_MODE_MAP = {v: k for k, v in MODE_MAP.items()}
 
 PHASE_MAP = {
-    "1-phasig": 1,
-    "3-phasig": 3,
+    "1 Phase": 1,
+    "3 Phasen": 3,
 }
 REVERSE_PHASE_MAP = {v: k for k, v in PHASE_MAP.items()}
 
@@ -30,90 +31,93 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up select entities for the AlphaESS wallbox."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    client = coordinator.client
+    """Set up AlphaESS Wallbox select entities."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: AlphaESSDataUpdateCoordinator = data["coordinator"]
 
-    device_info = DeviceInfo(
-        identifiers={("alphaess", client.ev_charger_sn)},
-        name=f"Alpha ESS Charger : {client.ev_charger_sn}",
-        manufacturer="Alpha ESS",
-        model="SMILE-EVCT11",
-    )
-
-    async_add_entities(
-        [
-            AlphaESSModeSelect(coordinator, device_info, entry.entry_id),
-            AlphaESSPhaseSelect(coordinator, device_info, entry.entry_id),
-        ],
-        True,
-    )
+    async_add_entities([
+        AlphaESSChargeModeSelect(coordinator, entry),
+        AlphaESSPhaseSelect(coordinator, entry),
+    ])
 
 
-class AlphaESSModeSelect(CoordinatorEntity, SelectEntity):
-    """Select entity for charge mode."""
+class AlphaESSChargeModeSelect(CoordinatorEntity, SelectEntity):
+    """Select entity for EV charge mode."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = "mode"
+    _attr_name = "Lademodus"
     _attr_icon = "mdi:ev-station"
     _attr_options = list(MODE_MAP.keys())
 
-    def __init__(self, coordinator, device_info, entry_id: str):
+    def __init__(
+        self,
+        coordinator: AlphaESSDataUpdateCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize the charge mode select."""
         super().__init__(coordinator)
-        self._attr_device_info = device_info
-        self._attr_unique_id = f"{entry_id}_ev_charger_charge_mode"
-        self._attr_current_option = "Custom / Manuell (evcc-Steuerung)"
+        self.api = coordinator.api
+        self._attr_unique_id = f"{entry.entry_id}_charge_mode"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, entry.entry_id)},
+            "name": "AlphaESS Wallbox",
+            "manufacturer": "AlphaESS",
+        }
 
     @property
     def current_option(self) -> str | None:
-        if self.coordinator.data is None:
-            return None
-        return REVERSE_MODE_MAP.get(
-            self.coordinator.data.get(
-                "charging_mode"), self._attr_current_option
-        )
+        """Return currently selected mode."""
+        if self.coordinator.data:
+            mode_int = self.coordinator.data.get("chargeMode", 4)
+            return REVERSE_MODE_MAP.get(mode_int, "Power")
+        return "Power"
 
     async def async_select_option(self, option: str) -> None:
-        mode_code = MODE_MAP.get(option, 4)
-        success = await self.coordinator.client.set_charge_mode(mode_code)
-        if success and self.coordinator.data is not None:
-            self.coordinator.data["charging_mode"] = mode_code
-            self._attr_current_option = option
-            self.async_write_ha_state()
-            await self.coordinator.async_request_refresh()
-        elif not success:
-            _LOGGER.error("Failed to set charge mode to %s", option)
+        """Change charge mode."""
+        mode_val = MODE_MAP.get(option)
+        if mode_val:
+            _LOGGER.debug("Setting AlphaESS Wallbox charge mode to %s (%d)", option, mode_val)
+            success = await self.api.async_set_ev_charge_mode(mode_val)
+            if success:
+                await self.coordinator.async_request_refresh()
 
 
 class AlphaESSPhaseSelect(CoordinatorEntity, SelectEntity):
-    """Select entity for phase count."""
+    """Select entity for 1-Phase / 3-Phase switching."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = "phases"
-    _attr_icon = "mdi:phase-change"
+    _attr_name = "Phasen"
+    _attr_icon = "mdi:sine-wave"
     _attr_options = list(PHASE_MAP.keys())
 
-    def __init__(self, coordinator, device_info, entry_id: str):
+    def __init__(
+        self,
+        coordinator: AlphaESSDataUpdateCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize phase select."""
         super().__init__(coordinator)
-        self._attr_device_info = device_info
-        self._attr_unique_id = f"{entry_id}_ev_charger_phases"
-        self._attr_current_option = "3-phasig"
+        self.api = coordinator.api
+        self._attr_unique_id = f"{entry.entry_id}_charge_phase"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, entry.entry_id)},
+            "name": "AlphaESS Wallbox",
+            "manufacturer": "AlphaESS",
+        }
 
     @property
     def current_option(self) -> str | None:
-        if self.coordinator.data is None:
-            return None
-        return REVERSE_PHASE_MAP.get(
-            self.coordinator.data.get("phase"), self._attr_current_option
-        )
+        """Return active phase setting."""
+        if self.coordinator.data:
+            phase_int = self.coordinator.data.get("obcPhase", 3)
+            return REVERSE_PHASE_MAP.get(phase_int, "3 Phasen")
+        return "3 Phasen"
 
     async def async_select_option(self, option: str) -> None:
-        phase_code = PHASE_MAP.get(option, 3)
-        success = await self.coordinator.client.set_phases(phase_code)
-        if success and self.coordinator.data is not None:
-            self.coordinator.data["phase"] = phase_code
-            self._attr_current_option = option
-            self.async_write_ha_state()
-            await self.coordinator.async_request_refresh()
-        elif not success:
-            _LOGGER.error("Failed to set phase count to %s", option)
+        """Change phase configuration."""
+        phase_val = PHASE_MAP.get(option)
+        if phase_val:
+            _LOGGER.debug("Setting AlphaESS Wallbox phases to %s (%d)", option, phase_val)
+            success = await self.api.async_set_ev_phases(phase_val)
+            if success:
+                await self.coordinator.async_request_refresh()
