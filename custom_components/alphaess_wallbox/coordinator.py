@@ -1,38 +1,34 @@
-from __future__ import annotations
-
+"""Coordinator for AlphaESS Wallbox integration."""
 from datetime import timedelta
 import logging
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import AlphaWebApiClient
+from .api import AlphaESSApiClient
+from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_UPDATE_INTERVAL = timedelta(seconds=60)
+class AlphaESSDataUpdateCoordinator(DataUpdateCoordinator):
+    """Class to manage fetching AlphaESS Wallbox data."""
 
-
-class AlphaESSDataUpdateCoordinator(DataUpdateCoordinator[dict]):
-    """Koordiniert den abgerufenen Zustandscache für die AlphaESS Wallbox."""
-
-    def __init__(self, hass: HomeAssistant, client: AlphaWebApiClient) -> None:
+    def __init__(self, hass: HomeAssistant, api: AlphaESSApiClient) -> None:
+        """Initialize coordinator."""
+        self.api = api
         super().__init__(
             hass,
             _LOGGER,
-            name="AlphaESS Wallbox",
-            update_interval=DEFAULT_UPDATE_INTERVAL,
+            name=DOMAIN,
+            update_interval=timedelta(seconds=DEFAULT_SCAN_INTERVAL),
         )
-        self.client = client
 
     async def _async_update_data(self) -> dict:
-        """Fetch data from API with automatic re-authentication on failure."""
-        data = await self.client.get_wallbox_status()
-        if data is None:
-            _LOGGER.warning("AlphaESS Session abgelaufen oder API-Fehler. Führe Re-Login aus...")
-            if await self.client.login():
-                _LOGGER.info("Re-Login erfolgreich. Erneute Datenabfrage...")
-                data = await self.client.get_wallbox_status()
-        if data is None:
-            raise UpdateFailed("AlphaESS Web API konnte auch nach Re-Login keine Daten zurückliefern")
-        return data
+        """Fetch data from AlphaESS Cloud API."""
+        try:
+            status_data = await self.api.async_get_ev_status()
+            if not status_data:
+                _LOGGER.warning("Empty response received from AlphaESS Wallbox API")
+            return status_data
+        except Exception as err:
+            raise UpdateFailed(f"Error communicating with AlphaESS API: {err}") from err

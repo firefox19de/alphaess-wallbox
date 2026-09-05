@@ -1,67 +1,65 @@
+"""Number entity for setting AlphaESS Wallbox charge current."""
 import logging
-from homeassistant.components.number import NumberEntity, NumberMode
+from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .coordinator import AlphaESSDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up number entities for the AlphaESS wallbox."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    client = coordinator.client
+    """Set up AlphaESS Wallbox number entities."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: AlphaESSDataUpdateCoordinator = data["coordinator"]
 
-    device_info = DeviceInfo(
-        identifiers={("alphaess", client.ev_charger_sn)},
-        name=f"Alpha ESS Charger : {client.ev_charger_sn}",
-        manufacturer="Alpha ESS",
-        model="SMILE-EVCT11",
-    )
-
-    async_add_entities(
-        [AlphaWallboxCurrentNumber(coordinator, device_info, entry.entry_id)],
-        True,
-    )
+    async_add_entities([AlphaESSChargeCurrentNumber(coordinator, entry)])
 
 
-class AlphaWallboxCurrentNumber(CoordinatorEntity, NumberEntity):
-    """Control the maximum charging current."""
+class AlphaESSChargeCurrentNumber(CoordinatorEntity, NumberEntity):
+    """Representation of EV Charge Current setting."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = "maxcurrent"
-    _attr_icon = "mdi:current-ac"
-    _attr_mode = NumberMode.SLIDER
-    _attr_native_min_value = 6.0
-    _attr_native_max_value = 16.0
-    _attr_native_step = 0.5  # Unterstützt 0.5A Nachkommastellen
+    _attr_name = "Ladestrom"
+    _attr_native_min_value = 6
+    _attr_native_max_value = 32
+    _attr_native_step = 1
     _attr_native_unit_of_measurement = "A"
+    _attr_icon = "mdi:current-ac"
 
-    def __init__(self, coordinator, device_info, entry_id: str) -> None:
+    def __init__(
+        self,
+        coordinator: AlphaESSDataUpdateCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize the charge current entity."""
         super().__init__(coordinator)
-        self._attr_device_info = device_info
-        self._attr_unique_id = f"{entry_id}_ev_charger_max_current_setting"
+        self.api = coordinator.api
+        self._attr_unique_id = f"{entry.entry_id}_charge_current"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, entry.entry_id)},
+            "name": "AlphaESS Wallbox",
+            "manufacturer": "AlphaESS",
+        }
 
     @property
     def native_value(self) -> float | None:
-        if self.coordinator.data is None:
-            return None
-        return self.coordinator.data.get("max_current")
+        """Return the current charge current value from coordinator data if available."""
+        return float(self.coordinator.data.get("current", 6)) if self.coordinator.data else 6.0
 
     async def async_set_native_value(self, value: float) -> None:
-        target_current = float(value)
-        _LOGGER.debug("Setting Wallbox current to %sA", target_current)
-
-        success = await self.coordinator.client.set_charging_current(target_current)
-        if success and self.coordinator.data is not None:
-            self.coordinator.data["max_current"] = target_current
-            self.async_write_ha_state()
+        """Set new charge current."""
+        target_current = int(value)
+        _LOGGER.debug("Setting AlphaESS Wallbox charge current to %d A", target_current)
+        success = await self.api.async_set_ev_charge_current(target_current)
+        if success:
             await self.coordinator.async_request_refresh()
+        else:
+            _LOGGER.error("Failed to set charge current to %d A", target_current)

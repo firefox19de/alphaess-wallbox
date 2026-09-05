@@ -1,227 +1,181 @@
-import asyncio
-import base64
-import hashlib
-import json
+"""API Client for AlphaESS Wallbox Integration."""
 import logging
-from typing import Any
-
-from aiohttp import ClientError
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+import aiohttp
 
 _LOGGER = logging.getLogger(__name__)
 
+BASE_URL = "https://platform-eur.alphaess.com"
+LOGIN_URL = "https://cloud.alphaess.com/login"
+API_PILOT_URL = "https://cloud.alphaess.com/api/usercenter/cloud/user/pilot"
+API_SESSION_URL = "https://platform-eur.alphaess.com/api/users-center/sessions"
+API_SITES_URL = "https://platform-eur.alphaess.com/api/internal/v1/sites"
+API_EV_URL = "https://platform-eur.alphaess.com/api/internal/v1/ev-charger"
+API_ESS_URL = "https://platform-eur.alphaess.com/api/internal/v1/ess"
 
-def _hash_password(password: str) -> str:
-    """Passwort mit SHA-256 hashen und Base64-enkodieren."""
-    digest = hashlib.sha256(password.encode("utf-8")).digest()
-    return base64.b64encode(digest).decode("utf-8")
+DEFAULT_HEADERS = {
+    "Accept": "application/json",
+    "Origin": "https://portal.alphaess.com",
+    "User-Agent": "Mozilla/5.0",
+    "X-Requested-With": "XMLHttpRequest",
+}
 
+class AlphaESSApiClient:
+    """Client for AlphaESS Cloud API v2."""
 
-class AlphaWebApiClient:
-    """Client für die neue AlphaESS Platform API (platform-eur.alphaess.com)."""
+    def __init__(self, session: aiohttp.ClientSession, username: str, password: str):
+        self._session = session
+        self._username = username
+        self._password = password
+        self._access_token = None
+        self._refresh_token = None
+        self.site_id = None
+        self.system_sn = None
+        self.ev_charger_sn = None
+        self.has_charging_pile = False
 
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        username: str,
-        password: str,
-        base_url: str = "https://platform-eur.alphaess.com",
-    ):
-        self.hass = hass
-        self.username = username
-        self.password = password
-        self.base_url = base_url.rstrip("/")
+    async def async_login(self) -> bool:
+        """Authenticate with AlphaESS cloud API."""
+        try:
+            # 1. Warm-up Login Page
+            await self._session.post(LOGIN_URL, headers=DEFAULT_HEADERS)
 
-        self._token: str | None = None
-        self._auth_lock = asyncio.Lock()  # Mutex gegen 409 Concurrent Login Errors
+            # 2. Pilot Request
+            pilot_payload = {"username": self._username, "pilot": False}
+            await self._session.post(API_PILOT_URL, json=pilot_payload, headers=DEFAULT_HEADERS)
 
-        self.system_sn: str | None = None
-        self.site_id: str | None = None
-        self.ev_charger_sn: str | None = None
+            # 3. Session Login Request
+            session_payload = {
+                "type": "password",
+                "email": self._username,
+                "password": self._password
+            }
+            async with self._session.post(API_SESSION_URL, json=session_payload, headers=DEFAULT_HEADERS) as resp:
+                data = await resp.json()
+                
+                # Responsedaten-Struktur extrahieren
+                res_data = data.get("data", {}) if isinstance(data, dict) else {}
+                token = res_data.get("accessToken")
+                
+                if not token:
+                    _LOGGER.error("Login failed, missing accessToken: %s", data)
+                    return False
 
-    def _get_session(self):
-        return async_get_clientsession(self.hass)
-
-    async def close(self) -> None:
-        """No-op for HA managed session."""
-        return
-
-    def _get_headers(self) -> dict[str, str]:
-        headers = {
-            "Accept": "application/json, text/plain, */*",
-            "Content-Type": "application/json",
-            "Tenant": "alphaess",
-            "Client-End": "Web",
-            "Client-Name": "Portal",
-            "countryCode": "DE",
-        }
-        if self._token:
-            headers["Authorization"] = f"Bearer {self._token}"
-        return headers
-
-    async def login(self) -> bool:
-        """Login über Platform Session Endpoint."""
-        async with self._auth_lock:
-            if self._token:
+                self._access_token = f"Bearer {token}"
+                self._refresh_token = res_data.get("refreshToken")
+                _LOGGER.debug("Login successful, token stored.")
                 return True
 
-            session = self._get_session()
-            login_url = f"{self.base_url}/api/users-center/sessions"
-            payload = {
-                "type": "password",
-                "email": self.username,
-                "password": _hash_password(self.password),
-            }
+        except Exception as err:
+            _LOGGER.error("Error during AlphaESS authentication: %s", err)
+            return False
 
-            try:
-                _LOGGER.debug("Führe Login bei AlphaESS Platform aus...")
-                async with session.post(login_url, json=payload, headers=self._get_headers(), timeout=10) as response:
-                    if response.status in (200, 201):
-                        data = await response.json(content_type=None)
-                        token = data.get("token") or data.get("accessToken")
-                        if token:
-                            self._token = token
-                            _LOGGER.info("AlphaESS Platform Login erfolgreich!")
-                            return True
+    def _get_auth_headers((self) -> dict:
+        """Get headers with Bearer token."""
+        headers = DEFAULT_HEADERS.copy()
+        if self._access_token:
+            headers["Authorization"] = self._access_token
+        return headers
 
-                    if response.status in (400, 401, 403):
-                        raise ConfigEntryAuthFailed("Zugangsdaten ungültig")
-
-                    if response.status == 409:
-                        _LOGGER.warning("Session existiert bereits (409). Reset per DELETE...")
-                        async with session.delete(login_url, json=payload, headers=self._get_headers(), timeout=10):
-                            pass
-                        await asyncio.sleep(2.0)
-                        async with session.post(login_url, json=payload, headers=self._get_headers(), timeout=10) as retry:
-                            if retry.status in (200, 201):
-                                data = await retry.json(content_type=None)
-                                self._token = data.get("token") or data.get("accessToken")
-                                return bool(self._token)
-
-                    _LOGGER.error("AlphaESS Login fehlgeschlagen: Status %s", response.status)
-                    return False
-            except (ClientError, asyncio.TimeoutError) as err:
-                _LOGGER.error("Fehler beim API-Login: %s", err)
+    async def async_get_env_and_site_details(self) -> bool:
+        """Fetch site ID, system SN, and EV charger SN."""
+        if not self._access_token:
+            if not await self.async_login():
                 return False
 
-    async def _request(
-        self, method: str, endpoint: str, json_payload: dict | None = None, params: dict | None = None
-    ) -> dict | list | None:
-        if not self._token:
-            if not await self.login():
-                return None
-
-        session = self._get_session()
-        url = f"{self.base_url}{endpoint}"
-
         try:
-            async with session.request(
-                method, url, json=json_payload, params=params, headers=self._get_headers(), timeout=10
-            ) as response:
-                if response.status in (401, 403):
-                    _LOGGER.warning("Token abgelaufen, erneuere Session...")
-                    self._token = None
-                    if await self.login():
-                        async with session.request(
-                            method, url, json=json_payload, params=params, headers=self._get_headers(), timeout=10
-                        ) as retry_res:
-                            return await self._parse_response(retry_res)
-                    return None
+            headers = self._get_auth_headers()
 
-                return await self._parse_response(response)
-        except (ClientError, asyncio.TimeoutError) as err:
-            _LOGGER.error("Fehler beim API-Request (%s): %s", endpoint, err)
-            return None
+            # 1. Sites abrufen
+            async with self._session.get(API_SITES_URL, headers=headers) as resp:
+                sites_data = await resp.json()
+                sites = sites_data.get("data", [])
+                if not sites:
+                    _LOGGER.error("No sites found in AlphaESS account.")
+                    return False
+                self.site_id = sites[0].get("id")
 
-    async def _parse_response(self, response) -> dict | list | None:
-        if response.status not in (200, 201, 204):
-            _LOGGER.warning("API Antwort mit Status %s: %s", response.status, await response.text())
-            return None
-        if response.status == 204:
-            return {"code": 200, "success": True}
-        try:
-            return await response.json(content_type=None)
-        except (json.JSONDecodeError, ValueError) as err:
-            _LOGGER.error("JSON Parse Fehler: %s", err)
-            return None
+            # 2. Site Details abrufen
+            site_url = f"{API_SITES_URL}/{self.site_id}"
+            async with self._session.get(site_url, headers=headers) as resp:
+                site_details = (await resp.json()).get("data", {})
+                self.has_charging_pile = site_details.get("hasChargingPile", False)
+                
+                ess_devices = site_details.get("essDevices", [])
+                if ess_devices:
+                    self.system_sn = ess_devices[0].get("sysSn")
 
-    async def load_system_and_charger(self) -> bool:
-        """Ermittelt Site-ID, System-SN und Wallbox-SN."""
-        if self.system_sn and self.ev_charger_sn:
-            return True
+            if not self.has_charging_pile:
+                _LOGGER.warning("No charging pile detected on site.")
+                return False
 
-        sites_res = await self._request("GET", "/api/internal/v1/sites")
-        sites_list = sites_res if isinstance(sites_res, list) else (sites_res.get("data") if isinstance(sites_res, dict) else [])
+            # 3. Wallbox Devices abrufen
+            devices_url = f"{site_url}/devices"
+            async with self._session.get(devices_url, headers=headers) as resp:
+                devices_data = (await resp.json()).get("data", {})
+                ess_list = devices_data.get("ess", [])
+                if ess_list and "evChargers" in ess_list[0] and ess_list[0]["evChargers"]:
+                    self.ev_charger_sn = ess_list[0]["evChargers"][0].get("sysSn")
 
-        if not sites_list:
-            _LOGGER.error("Keine AlphaESS Sites gefunden")
+            return bool(self.ev_charger_sn)
+
+        except Exception as err:
+            _LOGGER.error("Failed to fetch environment and site details: %s", err)
             return False
 
-        first_site = sites_list[0]
-        self.site_id = first_site.get("id") or first_site.get("sysId")
+    async def async_get_ev_status(self) -> dict:
+        """Get real-time EV charger status."""
+        if not self.ev_charger_sn:
+            if not await self.async_get_env_and_site_details():
+                return {}
 
-        devices = first_site.get("devices") or []
-        for dev in devices:
-            dev_type = (dev.get("type") or "").lower()
-            if dev_type == "ess" and not self.system_sn:
-                self.system_sn = dev.get("sysSn")
-            elif dev_type == "evcharger" and not self.ev_charger_sn:
-                self.ev_charger_sn = dev.get("sysSn")
+        url = f"{API_EV_URL}/{self.ev_charger_sn}/real-status"
+        try:
+            async with self._session.get(url, headers=self._get_auth_headers()) as resp:
+                data = (await resp.json()).get("data", {})
+                return {
+                    "status": data.get("status"),
+                    "gun_is_lock": data.get("gunIsLock"),
+                    "power": data.get("power"),
+                }
+        except Exception as err:
+            _LOGGER.error("Failed to fetch EV charger status: %s", err)
+            return {}
 
+    async def async_set_ev_charge_current(self, current: int) -> bool:
+        """Set charge current (in Amperes)."""
         if not self.system_sn or not self.ev_charger_sn:
-            devices_res = await self._request("GET", f"/api/internal/v1/sites/{self.site_id}/devices")
-            if isinstance(devices_res, list):
-                for dev in devices_res:
-                    dev_type = (dev.get("type") or "").lower()
-                    if "ess" in dev_type and not self.system_sn:
-                        self.system_sn = dev.get("sysSn")
-                    elif ("evcharger" in dev_type or "charger" in dev_type) and not self.ev_charger_sn:
-                        self.ev_charger_sn = dev.get("sysSn")
+            if not await self.async_get_env_and_site_details():
+                return False
 
-        _LOGGER.info("System SN: %s | Wallbox SN: %s", self.system_sn, self.ev_charger_sn)
-        return bool(self.system_sn and self.ev_charger_sn)
-
-    async def get_wallbox_status(self) -> dict | None:
-        """Liest den aktuellen Status der Wallbox aus."""
-        if not await self.load_system_and_charger():
-            return None
-
-        real_status = await self._request("GET", f"/api/internal/v1/ev-charger/{self.ev_charger_sn}/real-status")
-        ess_status = await self._request("GET", f"/api/internal/v1/ess/{self.system_sn}", params={"components": "evCharger"})
-
-        ev_info = (ess_status.get("evCharger") if isinstance(ess_status, dict) else {}) or {}
-
-        status_code = real_status.get("mode", 9) if isinstance(real_status, dict) else 9
-        max_current = ev_info.get("g1T_chargeCurrent") or ev_info.get("maxCurrent", 16)
-        phase = ev_info.get("g1T_obcPhase") or ev_info.get("chargingpilePhase", 3)
-        charging_mode = ev_info.get("g1T_chargeMode") or ev_info.get("chargingmode", 4)
-
-        return {
-            "status_code": int(status_code),
-            "max_current": float(max_current),
-            "phase": int(phase),
-            "charging_mode": int(charging_mode),
-            "charger_sn": self.ev_charger_sn,
+        url = f"{API_ESS_URL}/{self.system_sn}"
+        payload = {
+            "evCharger": [
+                {
+                    "sn": self.ev_charger_sn,
+                    "g1T": {
+                        "chargeCurrent": current
+                    }
+                }
+            ]
         }
-
-    async def set_charging_current(self, ampere: float) -> bool:
-        """Setzt den Ladestrom per PATCH auf den Inverter (ESS)."""
-        return await self._patch_ess_settings({"g1T_chargeCurrent": float(ampere)})
-
-    async def set_phases(self, phases: int) -> bool:
-        """Setzt die Phasen per PATCH auf den Inverter (ESS)."""
-        return await self._patch_ess_settings({"g1T_obcPhase": int(phases)})
-
-    async def set_charge_mode(self, mode_code: int) -> bool:
-        """Setzt den Lademodus per PATCH auf den Inverter (ESS)."""
-        return await self._patch_ess_settings({"g1T_chargeMode": int(mode_code)})
-
-    async def _patch_ess_settings(self, updates: dict) -> bool:
-        """Sendet gezielte Einstellungen per PATCH an den Wechselrichter."""
-        if not await self.load_system_and_charger():
+        try:
+            async with self._session.patch(url, json=payload, headers=self._get_auth_headers()) as resp:
+                return resp.status == 200
+        except Exception as err:
+            _LOGGER.error("Failed to set charge current: %s", err)
             return False
 
-        res = await self._request("PATCH", f"/api/internal/v1/ess/{self.system_sn}", json_payload=updates)
-        return res is not None
+    async def async_set_ev_charge_ctrl(self, control: str) -> bool:
+        """Start or stop EV charging ('START' or 'STOP')."""
+        if not self.ev_charger_sn:
+            if not await self.async_get_env_and_site_details():
+                return False
+
+        url = f"{API_EV_URL}/{self.ev_charger_sn}/events"
+        payload = {"control": control}
+        try:
+            async with self._session.post(url, json=payload, headers=self._get_auth_headers()) as resp:
+                return resp.status == 200
+        except Exception as err:
+            _LOGGER.error("Failed to set charge control state '%s': %s", control, err)
+            return Falsees.get("code") == 200

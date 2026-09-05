@@ -1,45 +1,86 @@
-"""Button platform for AlphaESS Wallbox integration."""
+"""Button entities for AlphaESS Wallbox charge control."""
+import logging
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
+from .coordinator import AlphaESSDataUpdateCoordinator
 
+_LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the AlphaESS Wallbox button platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    client = coordinator.client
+    """Set up AlphaESS Wallbox button entities."""
+    data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: AlphaESSDataUpdateCoordinator = data["coordinator"]
 
-    device_info = DeviceInfo(
-        identifiers={("alphaess", client.ev_charger_sn)},
-        name=f"Alpha ESS Charger : {client.ev_charger_sn}",
-        manufacturer="Alpha ESS",
-        model="SMILE-EVCT11",
-    )
-
-    async_add_entities([AlphaESSFetchStatusButton(coordinator, device_info, entry.entry_id)], True)
+    async_add_entities([
+        AlphaESSStartChargeButton(coordinator, entry),
+        AlphaESSStopChargeButton(coordinator, entry),
+    ])
 
 
-class AlphaESSFetchStatusButton(CoordinatorEntity, ButtonEntity):
-    """Representation of a button to fetch latest status from Web-API."""
+class AlphaESSStartChargeButton(CoordinatorEntity, ButtonEntity):
+    """Button to start EV charging."""
 
     _attr_has_entity_name = True
-    _attr_translation_key = "fetch_status"
-    _attr_icon = "mdi:refresh"
+    _attr_name = "Ladevorgang Starten"
+    _attr_icon = "mdi:play-circle-outline"
 
-    def __init__(self, coordinator, device_info, entry_id: str):
+    def __init__(
+        self,
+        coordinator: AlphaESSDataUpdateCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize start button."""
         super().__init__(coordinator)
-        self._attr_device_info = device_info
-        self._attr_unique_id = f"{entry_id}_fetch_status"
+        self.api = coordinator.api
+        self._attr_unique_id = f"{entry.entry_id}_start_charge"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, entry.entry_id)},
+            "name": "AlphaESS Wallbox",
+            "manufacturer": "AlphaESS",
+        }
 
     async def async_press(self) -> None:
-        """Handle the button press."""
-        await self.coordinator.async_refresh()
+        """Handle button press."""
+        _LOGGER.debug("Triggering EV charge START")
+        success = await self.api.async_set_ev_charge_ctrl("START")
+        if success:
+            await self.coordinator.async_request_refresh()
+
+
+class AlphaESSStopChargeButton(CoordinatorEntity, ButtonEntity):
+    """Button to stop EV charging."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Ladevorgang Stoppen"
+    _attr_icon = "mdi:stop-circle-outline"
+
+    def __init__(
+        self,
+        coordinator: AlphaESSDataUpdateCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize stop button."""
+        super().__init__(coordinator)
+        self.api = coordinator.api
+        self._attr_unique_id = f"{entry.entry_id}_stop_charge"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, entry.entry_id)},
+            "name": "AlphaESS Wallbox",
+            "manufacturer": "AlphaESS",
+        }
+
+    async def async_press(self) -> None:
+        """Handle button press."""
+        _LOGGER.debug("Triggering EV charge STOP")
+        success = await self.api.async_set_ev_charge_ctrl("STOP")
+        if success:
+            await self.coordinator.async_request_refresh()

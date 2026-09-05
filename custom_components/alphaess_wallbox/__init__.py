@@ -1,42 +1,41 @@
+"""AlphaESS Wallbox Integration."""
 import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_USERNAME, CONF_PASSWORD, CONF_URL
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import AlphaWebApiClient
+from .api import AlphaESSApiClient
 from .coordinator import AlphaESSDataUpdateCoordinator
-from .const import DOMAIN
+from .const import DOMAIN, PLATFORMS, CONF_USERNAME, CONF_PASSWORD
 
-PLATFORMS = ["select", "number", "button"]
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Richtet die Integration über die Config Flow Daten ein."""
-    client = AlphaWebApiClient(
-        hass,
-        username=entry.data[CONF_USERNAME],
-        password=entry.data[CONF_PASSWORD],
-        base_url=entry.data.get(CONF_URL, "https://platform-eur.alphaess.com"),
-    )
+    """Set up AlphaESS Wallbox from a config entry."""
+    hass.data.setdefault(DOMAIN, {})
 
-    if not await client.load_system_and_charger():
-        _LOGGER.error("AlphaESS Web API konnte Systemdaten nicht laden")
-        return False
+    session = async_get_clientsession(hass)
+    username = entry.data[CONF_USERNAME]
+    password = entry.data[CONF_PASSWORD]
 
-    coordinator = AlphaESSDataUpdateCoordinator(hass, client)
+    api = AlphaESSApiClient(session, username, password)
+    coordinator = AlphaESSDataUpdateCoordinator(hass, api)
+
     await coordinator.async_config_entry_first_refresh()
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "client": client,
+    hass.data[DOMAIN][entry.entry_id] = {
+        "api": api,
         "coordinator": coordinator,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Entfernt die Integration sauber."""
+    """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
+
     return unload_ok
